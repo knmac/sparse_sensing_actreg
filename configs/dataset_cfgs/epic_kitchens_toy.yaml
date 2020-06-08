@@ -1,0 +1,3 @@
+dataset_name: 'epic_kitchens'
+dataset_params:
+    data_root: 'data/EPIC-KITCHENS_2018'
