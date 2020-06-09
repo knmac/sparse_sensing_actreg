@@ -7,8 +7,6 @@ import sys
 import argparse
 from pathlib import Path
 
-from tqdm import tqdm
-
 
 def parse_args():
     """Parse input arguments"""
@@ -44,8 +42,8 @@ def main(args):
                 if not link_path.exists():
                     link_path.mkdir(parents=True)
 
-                print(modality, split, source_file)
-                for i, _ in tqdm(enumerate(source_file.iterdir())):
+                print(modality, split, video)
+                for i, _ in enumerate(source_file.iterdir()):
 
                     f = 'frame_{:010d}.jpg'.format(i + 1)
                     source = source_file / f

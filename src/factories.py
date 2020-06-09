@@ -73,7 +73,7 @@ class DatasetFactory(BaseFactory):
     def __init__(self):
         self.info_msg = 'Generating dataset'
         self.objfn_dict = {
-                'epic_kitchen': EpicKitchenDataset,
+            'epic_kitchens': EpicKitchenDataset,
         }
 
     def generate(self, dataset_name, **kwargs):

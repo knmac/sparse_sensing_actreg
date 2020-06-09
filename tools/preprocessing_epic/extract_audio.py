@@ -49,7 +49,10 @@ def main(args):
                 input_video = os.path.join(root, f)
                 output_sound = os.path.join(
                     args.output_dir, os.path.splitext(f)[0]+'.wav')
-                ffmpeg_extraction(input_video, output_sound, args.sample_rate)
+                if os.path.isfile(output_sound):
+                    print('{} exists'.format(output_sound))
+                else:
+                    ffmpeg_extraction(input_video, output_sound, args.sample_rate)
     return 0
 
 

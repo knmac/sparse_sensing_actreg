@@ -5,5 +5,6 @@ from torch.utils.data import Dataset
 class BaseDataset(Dataset):
     """Base dataset to inherit from"""
     def __init__(self, mode):
+        self.mode = mode
         assert mode in ['train', 'val', 'test'], \
-                'Unsupported mode: {}'.format(mode)
+            'Unsupported mode: {}'.format(mode)
