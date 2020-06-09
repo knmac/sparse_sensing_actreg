@@ -2,6 +2,8 @@ data
 data/
 logs
 logg/
+.flake8
+.vim/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
