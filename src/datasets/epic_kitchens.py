@@ -24,13 +24,20 @@ class EpicKitchenDataset(BaseDataset):
                  use_audio_dict=True):
         """Initialize the dataset
 
+        Each sample will be organized as a dictionary as follow
+        {
+            'modality1': [C * num_segments * new_length[modality1], H, W],
+            'modality2': ...
+        }
+        where C is the number of channels of that modality
+
         Args:
             mode: (str) train, val, or test mode.
             list_file: (dict) dictionary with keys: train/val/test. Each is the
                 path to the pickled filed containing the path for
                 training/validation/testing. If is empty string, will load the
                 default full training list from EPIC-KITCHENS.
-            new_length: # TODO: explain this
+            new_length: (dict) number of frames per segment in a sample
             modality: (list) list of modalities to load.
             image_tmpl: (dict) regular expression template to retrieve filename.
             visual_path: (str) path to the directory containing the frames.
@@ -39,7 +46,7 @@ class EpicKitchenDataset(BaseDataset):
                 pickled dictionary file.
             fps: frame per seconds
             resampling_rate: (int) resampling rate of audio
-            num_segments: # TODO: explain this
+            num_segments: (int) num segments per sample (refer to the paper)
             transform: (dict) transformation for each modality, depending on
                 the mode.
             use_audio_dict: (bool) whether the audio_path is pointed to a
@@ -74,6 +81,7 @@ class EpicKitchenDataset(BaseDataset):
     def __getitem__(self, index):
         input = {}
         record = self.video_list[index]
+        # print(self.list_file.loc[self.list_file.index[index]])
 
         for m in self.modality:
             if self.mode == 'train':
@@ -98,6 +106,7 @@ class EpicKitchenDataset(BaseDataset):
 
             if m != 'RGB' and self.mode == 'train':
                 np.random.shuffle(segment_indices)
+            # print(m, segment_indices)
 
             img, label = self.get(m, record, segment_indices)
             input[m] = img
@@ -105,10 +114,10 @@ class EpicKitchenDataset(BaseDataset):
         return input, label
 
     def _parse_list(self):
+        """Parse from pandas data frame to list of VideoRecord objects"""
         self.video_list = [EpicVideoRecord(tup) for tup in self.list_file.iterrows()]
 
-    def _log_specgram(self, audio, window_size=10,
-                      step_size=5, eps=1e-6):
+    def _log_specgram(self, audio, window_size=10, step_size=5, eps=1e-6):
         nperseg = int(round(window_size * self.resampling_rate / 1e3))
         noverlap = int(round(step_size * self.resampling_rate / 1e3))
 
