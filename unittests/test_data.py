@@ -4,7 +4,6 @@ import os
 import unittest
 
 import torchvision
-# from torch.utils.data import DataLoader
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..')))
@@ -62,7 +61,7 @@ def get_transforms(modality, input_mean, input_std, scale_size, crop_size,
             # for each modality
             train_transform[m] = torchvision.transforms.Compose([
                 train_augmentation[m],
-                Stack(roll=arch == 'BNInception'),
+                Stack(roll=(arch == 'BNInception')),
                 ToTorchFormatTensor(div=arch != 'BNInception'),
                 normalize[m],
             ])
@@ -70,7 +69,7 @@ def get_transforms(modality, input_mean, input_std, scale_size, crop_size,
             val_transform[m] = torchvision.transforms.Compose([
                 GroupScale(int(scale_size[m])),
                 GroupCenterCrop(crop_size[m]),
-                Stack(roll=arch == 'BNInception'),
+                Stack(roll=(arch == 'BNInception')),
                 ToTorchFormatTensor(div=arch != 'BNInception'),
                 normalize[m],
             ])
@@ -79,12 +78,12 @@ def get_transforms(modality, input_mean, input_std, scale_size, crop_size,
             # (augmentation+normalization)
             # for each modality
             train_transform[m] = torchvision.transforms.Compose([
-                Stack(roll=arch == 'BNInception'),
+                Stack(roll=(arch == 'BNInception')),
                 ToTorchFormatTensor(div=False),
             ])
 
             val_transform[m] = torchvision.transforms.Compose([
-                Stack(roll=arch == 'BNInception'),
+                Stack(roll=(arch == 'BNInception')),
                 ToTorchFormatTensor(div=False),
             ])
     return train_transform, val_transform
@@ -100,7 +99,7 @@ class TestData(unittest.TestCase):
         dataset_factory = DatasetFactory()
 
         # Prepare some extra parameters
-        modality = ['RGB', 'Flow', 'Spec']
+        modality = dataset_params['modality']
         crop_size = {'RGB': 224, 'Flow': 224, 'Spec': 224}
         train_transform, val_transform = get_transforms(
             modality=modality,
