@@ -3,7 +3,7 @@ dataset_params:
     list_file:
         train: 'dataset_splits/EPIC_KITCHENS_2018/EPIC_train_action_labels.pkl'
         val:   'dataset_splits/EPIC_KITCHENS_2018/EPIC_val_action_labels.pkl'
-    visual_path: 'data/EPIC_KITCHENS_2018/frames_unified'
+    visual_path: 'data/EPIC_KITCHENS_2018/frames_restruct'
     audio_path: 'data/EPIC_KITCHENS_2018/audio_dict.pkl'
     use_audio_dict: True
     modality: ['RGB', 'Flow', 'Spec']

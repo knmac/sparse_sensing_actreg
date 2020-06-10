@@ -199,7 +199,8 @@ class EpicKitchenDataset(BaseDataset):
         return offsets
 
     def get(self, modality, record, indices):
-
+        """Get sample based on the given modality
+        """
         images = list()
         for seg_ind in indices:
             p = int(seg_ind)
