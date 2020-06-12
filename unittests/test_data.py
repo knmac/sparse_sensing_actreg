@@ -99,6 +99,7 @@ class TestData(unittest.TestCase):
         dataset_factory = DatasetFactory()
 
         # Prepare some extra parameters
+        # TODO: modularize this
         modality = dataset_params['modality']
         crop_size = {'RGB': 224, 'Flow': 224, 'Spec': 224}
         train_transform, val_transform = get_transforms(
