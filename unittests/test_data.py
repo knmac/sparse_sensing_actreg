@@ -62,7 +62,7 @@ def get_transforms(modality, input_mean, input_std, scale_size, crop_size,
             train_transform[m] = torchvision.transforms.Compose([
                 train_augmentation[m],
                 Stack(roll=(arch == 'BNInception')),
-                ToTorchFormatTensor(div=arch != 'BNInception'),
+                ToTorchFormatTensor(div=(arch != 'BNInception')),
                 normalize[m],
             ])
 
@@ -70,7 +70,7 @@ def get_transforms(modality, input_mean, input_std, scale_size, crop_size,
                 GroupScale(int(scale_size[m])),
                 GroupCenterCrop(crop_size[m]),
                 Stack(roll=(arch == 'BNInception')),
-                ToTorchFormatTensor(div=arch != 'BNInception'),
+                ToTorchFormatTensor(div=(arch != 'BNInception')),
                 normalize[m],
             ])
         else:

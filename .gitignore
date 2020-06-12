@@ -5,6 +5,7 @@ logs/
 .flake8
 .vim/
 tags
+.ctagsignore
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

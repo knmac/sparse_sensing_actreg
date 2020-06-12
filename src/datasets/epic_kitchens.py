@@ -114,7 +114,7 @@ class EpicKitchenDataset(BaseDataset):
         return input, label
 
     def _parse_list(self):
-        """Parse from pandas data frame to list of VideoRecord objects"""
+        """Parse from pandas data frame to list of EpicVideoRecord objects"""
         self.video_list = [EpicVideoRecord(tup) for tup in self.list_file.iterrows()]
 
     def _log_specgram(self, audio, window_size=10, step_size=5, eps=1e-6):
@@ -224,6 +224,14 @@ class EpicKitchenDataset(BaseDataset):
 
 
 class EpicVideoRecord(VideoRecord):
+    """Store pandas dataframe and return data a class property for simpler
+    accessibility. The supported properties are:
+        untrimmed_video_name: (str) video id that contains the current segment
+        start_frame: (int) starting frame index of the current segment
+        end_frame: (int) ending frame index of the current segment
+        num_frames: (dict) number of frames for different modalities
+        label: (dict) verb and noun class of the current segment
+    """
     def __init__(self, tup):
         self._index = str(tup[0])
         self._series = tup[1]
