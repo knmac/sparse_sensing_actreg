@@ -3,6 +3,7 @@ import sys
 import os
 import unittest
 
+import torch
 import torchvision
 
 sys.path.insert(0, os.path.abspath(
@@ -131,6 +132,17 @@ class TestData(unittest.TestCase):
         assert (sample['RGB'].numpy().sum() - -15417859.0) < 0.1
         assert (sample['Flow'].numpy().sum() - 12470523.0) < 0.1
         assert (sample['Spec'].numpy().sum() - -1589548.8) < 0.1
+
+        # Check with data loader
+        data_loader = torch.utils.data.DataLoader(
+            dataset, batch_size=16, shuffle=False,
+            num_workers=4, pin_memory=True)
+
+        print('')
+        for i, (samples, labels) in enumerate(data_loader):
+            print(i, samples['RGB'].shape, samples['Flow'].shape, samples['Spec'].shape)
+            if i >= 2:
+                break
 
 
 if __name__ == '__main__':
