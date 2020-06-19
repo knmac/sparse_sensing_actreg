@@ -24,14 +24,15 @@ class TestModel(unittest.TestCase):
         # Build TBN model
         device = torch.device('cuda')
         model = model_factory.generate(model_name, device=device, **model_params)
+        model.to(device)
 
         # TODO: Try to forward a random input
-        # sample = {
-        #     'RGB': torch.rand([1, 9, 224, 224]).to(device),
-        #     'Flow': torch.rand([1, 30, 224, 224]).to(device),
-        #     'Spec': torch.rand([1, 3, 256, 256]).to(device),
-        # }
-        # model(sample)
+        sample = {
+            'RGB': torch.rand([1, 9, 224, 224]).to(device),
+            'Flow': torch.rand([1, 30, 224, 224]).to(device),
+            'Spec': torch.rand([1, 3, 256, 256]).to(device),
+        }
+        model(sample)
 
 
 if __name__ == '__main__':
