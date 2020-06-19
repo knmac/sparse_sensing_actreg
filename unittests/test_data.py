@@ -18,12 +18,13 @@ class TestData(unittest.TestCase):
 
     def test_epic_kitchens(self):
         """Test epic kitchens dataset"""
-        dataset_cfg = 'configs/dataset_cfgs/epickitchens_action.yaml'
+        dataset_cfg = 'configs/dataset_cfgs/epickitchens.yaml'
         dataset_name, dataset_params = ConfigLoader.load_dataset_cfg(dataset_cfg)
         dataset_factory = DatasetFactory()
 
         # Prepare some extra parameters
-        modality = dataset_params['modality']
+        modality = ['RGB', 'Flow', 'Spec']
+        num_segments = 3
         input_mean = {'RGB': [104, 117, 128], 'Flow': [128]}
         input_std = {'RGB': [1], 'Flow': [1], 'Spec': [1]}
         scale_size = {'RGB': 256, 'Flow': 256, 'Spec': 256}
@@ -43,7 +44,8 @@ class TestData(unittest.TestCase):
 
         # Create dataset
         dataset = dataset_factory.generate(
-            dataset_name, mode='val', new_length=new_length,
+            dataset_name, mode='val', modality=modality,
+            num_segments=num_segments, new_length=new_length,
             transform=val_transform, **dataset_params,
         )
 

@@ -6,10 +6,8 @@ dataset_params:
     visual_path: 'data/EPIC_KITCHENS_2018/frames_restruct'
     audio_path: 'data/EPIC_KITCHENS_2018/audio_dict.pkl'
     use_audio_dict: True
-    modality: ['RGB', 'Flow', 'Spec']
     image_tmpl:
         RGB: 'img_{:010d}.jpg'
         Flow: '{}_{:010d}.jpg'
-    num_segments: 3
     resampling_rate: 24000
     fps: 60
