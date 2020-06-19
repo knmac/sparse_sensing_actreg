@@ -25,7 +25,7 @@ class BaseModel(nn.Module):
         """
         state_dict = self.state_dict()
         torch.save(state_dict, path)
-        
+
     def load_model(self, path):
         """Load model state dict from a given path
 

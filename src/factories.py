@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..')))
 
 from src.datasets.epic_kitchens import EpicKitchenDataset
+from src.models.tbn import TBN
 
 import src.utils.logging as logging
 
@@ -58,6 +59,7 @@ class ModelFactory(BaseFactory):
     def __init__(self):
         self.info_msg = 'Generating model'
         self.objfn_dict = {
+            'TBN': TBN,
         }
 
     def generate(self, model_name, **kwargs):
