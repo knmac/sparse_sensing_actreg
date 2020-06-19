@@ -26,7 +26,7 @@ class TestModel(unittest.TestCase):
         model = model_factory.generate(model_name, device=device, **model_params)
         model.to(device)
 
-        # TODO: Try to forward a random input
+        # Forward a random input
         sample = {
             'RGB': torch.rand([1, 9, 224, 224]).to(device),
             'Flow': torch.rand([1, 30, 224, 224]).to(device),
