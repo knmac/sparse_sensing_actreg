@@ -4,90 +4,13 @@ import os
 import unittest
 
 import torch
-import torchvision
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils.load_cfg import ConfigLoader
 from src.factories import DatasetFactory
-from src.utils.transforms import (
-    GroupMultiScaleCrop, GroupRandomHorizontalFlip, GroupScale,
-    GroupCenterCrop, GroupNormalize, IdentityTransform,
-    Stack, ToTorchFormatTensor
-)
-
-
-def get_train_augmentation(modality, input_size):
-    """Copied from epic fusion model's train augmentation"""
-    augmentation = {}
-    if 'RGB' in modality:
-        augmentation['RGB'] = torchvision.transforms.Compose(
-            [GroupMultiScaleCrop(input_size['RGB'], [1, .875, .75, .66]),
-             GroupRandomHorizontalFlip(is_flow=False)])
-    if 'Flow' in modality:
-        augmentation['Flow'] = torchvision.transforms.Compose(
-            [GroupMultiScaleCrop(input_size['Flow'], [1, .875, .75]),
-             GroupRandomHorizontalFlip(is_flow=True)])
-    if 'RGBDiff' in modality:
-        augmentation['RGBDiff'] = torchvision.transforms.Compose(
-            [GroupMultiScaleCrop(input_size['RGBDiff'], [1, .875, .75]),
-             GroupRandomHorizontalFlip(is_flow=False)])
-    return augmentation
-
-
-def get_transforms(modality, input_mean, input_std, scale_size, crop_size,
-                   train_augmentation, flow_prefix='', arch='BNInception'):
-    """Copied from epic fusion train.py"""
-    normalize = {}
-    for m in modality:
-        if (m != 'Spec'):
-            if (m != 'RGBDiff'):
-                normalize[m] = GroupNormalize(input_mean[m], input_std[m])
-            else:
-                normalize[m] = IdentityTransform()
-
-    image_tmpl = {}
-    train_transform = {}
-    val_transform = {}
-    for m in modality:
-        if (m != 'Spec'):
-            # Prepare dictionaries containing image name templates for each modality
-            if m in ['RGB', 'RGBDiff']:
-                image_tmpl[m] = "img_{:010d}.jpg"
-            elif m == 'Flow':
-                image_tmpl[m] = flow_prefix + "{}_{:010d}.jpg"
-            # Prepare train/val dictionaries containing the transformations
-            # (augmentation+normalization)
-            # for each modality
-            train_transform[m] = torchvision.transforms.Compose([
-                train_augmentation[m],
-                Stack(roll=(arch == 'BNInception')),
-                ToTorchFormatTensor(div=(arch != 'BNInception')),
-                normalize[m],
-            ])
-
-            val_transform[m] = torchvision.transforms.Compose([
-                GroupScale(int(scale_size[m])),
-                GroupCenterCrop(crop_size[m]),
-                Stack(roll=(arch == 'BNInception')),
-                ToTorchFormatTensor(div=(arch != 'BNInception')),
-                normalize[m],
-            ])
-        else:
-            # Prepare train/val dictionaries containing the transformations
-            # (augmentation+normalization)
-            # for each modality
-            train_transform[m] = torchvision.transforms.Compose([
-                Stack(roll=(arch == 'BNInception')),
-                ToTorchFormatTensor(div=False),
-            ])
-
-            val_transform[m] = torchvision.transforms.Compose([
-                Stack(roll=(arch == 'BNInception')),
-                ToTorchFormatTensor(div=False),
-            ])
-    return train_transform, val_transform
+from src.utils.misc import MiscUtils
 
 
 class TestData(unittest.TestCase):
@@ -100,19 +23,23 @@ class TestData(unittest.TestCase):
         dataset_factory = DatasetFactory()
 
         # Prepare some extra parameters
-        # TODO: modularize this
         modality = dataset_params['modality']
+        input_mean = {'RGB': [104, 117, 128], 'Flow': [128]}
+        input_std = {'RGB': [1], 'Flow': [1], 'Spec': [1]}
+        scale_size = {'RGB': 256, 'Flow': 256, 'Spec': 256}
         crop_size = {'RGB': 224, 'Flow': 224, 'Spec': 224}
-        train_transform, val_transform = get_transforms(
-            modality=modality,
-            input_mean={'RGB': [104, 117, 128], 'Flow': [128]},
-            input_std={'RGB': [1], 'Flow': [1], 'Spec': [1]},
-            scale_size={'RGB': 256, 'Flow': 256, 'Spec': 256},
-            crop_size=crop_size,
-            train_augmentation=get_train_augmentation(modality, crop_size),
-        )
-
         new_length = {'RGB': 1, 'Flow': 5, 'Spec': 1}
+
+        # Get augmentation and transforms
+        train_augmentation = MiscUtils.get_train_augmentation(modality, crop_size)
+        train_transform, val_transform = MiscUtils.get_train_val_transforms(
+            modality=modality,
+            input_mean=input_mean,
+            input_std=input_std,
+            scale_size=scale_size,
+            crop_size=crop_size,
+            train_augmentation=train_augmentation,
+        )
 
         # Create dataset
         dataset = dataset_factory.generate(
