@@ -60,12 +60,13 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
         run_iter = epoch * len(train_loader)
         _train_one_epoch(
             model, device, criterion, train_loader, optimizer, sum_writer,
-            epoch, run_iter, train_params, args)
+            epoch, run_iter, train_params)
 
         # Validation phase
         # TODO: check the case when there's no validation set
         if ((epoch + 1) % train_params['eval_freq'] == 0) or ((epoch + 1) == train_params['n_epochs']):
-            val_metrics = validate(model, device, criterion, val_loader, sum_writer, run_iter)
+            val_metrics = validate(model, device, criterion, val_loader,
+                                   sum_writer, run_iter+len(train_loader))
 
             # Remember best prec@1 and save checkpoint
             # TODO: save the whole val metrics
@@ -127,17 +128,17 @@ def _setup_training(model, optimizer, train_params, args):
         raise ValueError('Unsupported train_mode: {}'.format(train_mode))
 
     # Freeze stream weights (leaves only fusion and classification trainable)
-    if args.freeze:
+    if train_params['freeze']:
         model.freeze_fn('modalities')
 
     # Freeze batch normalisation layers except the first
-    if args.partialbn:
+    if train_params['partialbn']:
         model.freeze_fn('partialbn_parameters')
     return start_epoch, lr, model, best_prec1
 
 
 def _train_one_epoch(model, device, criterion, train_loader, optimizer,
-                     sum_writer, epoch, run_iter, train_params, args):
+                     sum_writer, epoch, run_iter, train_params):
     """Train one single epoch
     """
     dataset = train_loader.dataset.name
@@ -146,9 +147,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     # Switch to train mode
     model.train()
 
-    if args.partialbn:
+    if train_params['freeze']:
         model.module.freeze_fn('partialbn_statistics')
-    if args.freeze:
+    if train_params['partialbn']:
         model.module.freeze_fn('bn_statistics')
 
     # Prepare metrics
@@ -167,7 +168,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
 
     # Training loop
     end = time.time()
-    for i, (sample, target) in enumerate(train_loader):  # TODO: use tqdm
+    for i, (sample, target) in enumerate(train_loader):
         # Measure data loading time
         data_time.update(time.time() - end)
 
@@ -224,50 +225,25 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         batch_time.update(time.time() - end)
         end = time.time()
 
+        # Print out message
         if run_iter % train_params['print_freq'] == 0:
-            sum_writer.add_scalars('data/loss', {'training': losses.avg}, run_iter)
+            _lr = optimizer.param_groups[-1]['lr']
+
             sum_writer.add_scalar('data/epochs', epoch, run_iter)
-            sum_writer.add_scalar('data/learning_rate', optimizer.param_groups[-1]['lr'], run_iter)
-            sum_writer.add_scalars('data/precision/top1', {'training': top1.avg}, run_iter)
-            sum_writer.add_scalars('data/precision/top5', {'training': top5.avg}, run_iter)
+            sum_writer.add_scalar('data/learning_rate', _lr, run_iter)
 
-            if dataset != 'epic_kitchens':
-                message = ('Epoch: [{0}][{1}/{2}], lr: {lr:.5f}\n\t'
-                           'Time {batch_time.avg:.3f} ({batch_time.avg:.3f})\n\t'
-                           'Data {data_time.avg:.3f} ({data_time.avg:.3f})\n\t'
-                           'Loss {loss.avg:.4f} ({loss.avg:.4f})\n\t'
-                           'Prec@1 {top1.avg:.3f} ({top1.avg:.3f})\n\t'
-                           'Prec@5 {top5.avg:.3f} ({top5.avg:.3f})').format(
-                    epoch, i, len(train_loader), batch_time=batch_time,
-                    data_time=data_time, loss=losses, top1=top1, top5=top5,
-                    lr=optimizer.param_groups[-1]['lr'])
-            else:
-                sum_writer.add_scalars('data/verb/loss', {'training': verb_losses.avg}, run_iter)
-                sum_writer.add_scalars('data/noun/loss', {'training': noun_losses.avg}, run_iter)
-                sum_writer.add_scalars('data/verb/precision/top1', {'training': verb_top1.avg}, run_iter)
-                sum_writer.add_scalars('data/verb/precision/top5', {'training': verb_top5.avg}, run_iter)
-                sum_writer.add_scalars('data/noun/precision/top1', {'training': noun_top1.avg}, run_iter)
-                sum_writer.add_scalars('data/noun/precision/top5', {'training': noun_top5.avg}, run_iter)
+            msg_prefix = 'Epoch: [{0}][{1}/{2}]\t'.format(epoch, i, len(train_loader))
+            msg_prefix += 'lr={:.5f}, batch_time={:.3f}, data_time={:.3f}\n'.format(
+                _lr, batch_time.avg, data_time.avg)
 
-                message = ('Epoch: [{0}][{1}/{2}], lr: {lr:.5f}\n\t'
-                           'Time {batch_time.avg:.3f} ({batch_time.avg:.3f})\n\t'
-                           'Data {data_time.avg:.3f} ({data_time.avg:.3f})\n\t'
-                           'Loss {loss.avg:.4f} ({loss.avg:.4f})\n\t'
-                           'Verb Loss {verb_loss.avg:.4f} ({verb_loss.avg:.4f})\n\t'
-                           'Noun Loss {noun_loss.avg:.4f} ({noun_loss.avg:.4f})\n\t'
-                           'Prec@1 {top1.avg:.3f} ({top1.avg:.3f})\n\t'
-                           'Prec@5 {top5.avg:.3f} ({top5.avg:.3f})\n\t'
-                           'Verb Prec@1 {verb_top1.avg:.3f} ({verb_top1.avg:.3f})\n\t'
-                           'Verb Prec@5 {verb_top5.avg:.3f} ({verb_top5.avg:.3f})\n\t'
-                           'Noun Prec@1 {noun_top1.avg:.3f} ({noun_top1.avg:.3f})\n\t'
-                           'Noun Prec@5 {noun_top5.avg:.3f} ({noun_top5.avg:.3f})'
-                           ).format(
-                    epoch, i, len(train_loader), batch_time=batch_time,
-                    data_time=data_time, loss=losses, verb_loss=verb_losses,
-                    noun_loss=noun_losses, top1=top1, top5=top5,
-                    verb_top1=verb_top1, verb_top5=verb_top5,
-                    noun_top1=noun_top1, noun_top5=noun_top5, lr=optimizer.param_groups[-1]['lr'])
-            print(message)
+            log_content = {'losses': losses, 'top1': top1, 'top5': top5}
+            if dataset == 'epic_kitchens':
+                log_content.update({
+                    'verb_losses': verb_losses, 'verb_top1': verb_top1, 'verb_top5': verb_top5,
+                    'noun_losses': noun_losses, 'noun_top1': noun_top1, 'noun_top5': noun_top5,
+                })
+
+            _log_message('training', sum_writer, run_iter, log_content, msg_prefix)
 
     # Collect training metrics
     if dataset != 'epic_kitchens':
@@ -307,7 +283,6 @@ def validate(model, device, criterion, val_loader, sum_writer, run_iter):
         # Validation loop
         end = time.time()
         for i, (sample, target) in enumerate(val_loader):
-
             # Place input sample on the correct device for all modalities
             for k in sample.keys():
                 sample[k] = sample[k].to(device)
@@ -351,41 +326,18 @@ def validate(model, device, criterion, val_loader, sum_writer, run_iter):
             batch_time.update(time.time() - end)
             end = time.time()
 
-        if dataset != 'epic_kitchens':
-            sum_writer.add_scalars('data/loss', {'validation': losses.avg}, run_iter)
-            sum_writer.add_scalars('data/precision/top1', {'validation': top1.avg}, run_iter)
-            sum_writer.add_scalars('data/precision/top5', {'validation': top5.avg}, run_iter)
+        # Print out message
+        msg_prefix = 'Testing results:\n'
+        log_content = {'losses': losses, 'top1': top1, 'top5': top5}
 
-            message = ('Testing Results: '
-                       'Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f} '
-                       'Loss {loss.avg:.5f}').format(top1=top1,
-                                                     top5=top5,
-                                                     loss=losses)
-        else:
-            sum_writer.add_scalars('data/loss', {'validation': losses.avg}, run_iter)
-            sum_writer.add_scalars('data/precision/top1', {'validation': top1.avg}, run_iter)
-            sum_writer.add_scalars('data/precision/top5', {'validation': top5.avg}, run_iter)
-            sum_writer.add_scalars('data/verb/loss', {'validation': verb_losses.avg}, run_iter)
-            sum_writer.add_scalars('data/noun/loss', {'validation': noun_losses.avg}, run_iter)
-            sum_writer.add_scalars('data/verb/precision/top1', {'validation': verb_top1.avg}, run_iter)
-            sum_writer.add_scalars('data/verb/precision/top5', {'validation': verb_top5.avg}, run_iter)
-            sum_writer.add_scalars('data/noun/precision/top1', {'validation': noun_top1.avg}, run_iter)
-            sum_writer.add_scalars('data/noun/precision/top5', {'validation': noun_top5.avg}, run_iter)
+        if dataset == 'epic_kitchens':
+            log_content.update({
+                'verb_losses': verb_losses, 'verb_top1': verb_top1, 'verb_top5': verb_top5,
+                'noun_losses': noun_losses, 'noun_top1': noun_top1, 'noun_top5': noun_top5,
+            })
+        _log_message('validation', sum_writer, run_iter, log_content, msg_prefix)
 
-            message = ("Testing Results: "
-                       "Verb Prec@1 {verb_top1.avg:.3f} Verb Prec@5 {verb_top5.avg:.3f} "
-                       "Noun Prec@1 {noun_top1.avg:.3f} Noun Prec@5 {noun_top5.avg:.3f} "
-                       "Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f} "
-                       "Verb Loss {verb_loss.avg:.5f} "
-                       "Noun Loss {noun_loss.avg:.5f} "
-                       "Loss {loss.avg:.5f}").format(verb_top1=verb_top1, verb_top5=verb_top5,
-                                                     noun_top1=noun_top1, noun_top5=noun_top5,
-                                                     top1=top1, top5=top5,
-                                                     verb_loss=verb_losses,
-                                                     noun_loss=noun_losses,
-                                                     loss=losses)
-        print(message)
-
+        # Collect validation metrics
         if dataset != 'epic_kitchens':
             val_metrics = {'val_loss': losses.avg, 'val_acc': top1.avg}
         else:
@@ -396,3 +348,32 @@ def validate(model, device, criterion, val_loader, sum_writer, run_iter):
                            'val_verb_acc': verb_top1.avg,
                            'val_noun_acc': noun_top1.avg}
         return val_metrics
+
+
+def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
+    """Wrapper to print message and writer summary"""
+    msg = msg_prefix
+
+    sum_writer.add_scalars('data/loss', {phase: data['losses'].avg}, run_iter)
+    sum_writer.add_scalars('data/prec/top1', {phase: data['top1'].avg}, run_iter)
+    sum_writer.add_scalars('data/prec/top5', {phase: data['top5'].avg}, run_iter)
+
+    msg += '  Loss {:.4f}, Prec@1 {:.3f}, Prec@5 {:.3f}\n'.format(
+        data['losses'].avg, data['top1'].avg, data['top5'].avg)
+
+    try:
+        sum_writer.add_scalars('data/verb/loss', {phase: data['verb_losses'].avg}, run_iter)
+        sum_writer.add_scalars('data/noun/loss', {phase: data['noun_losses'].avg}, run_iter)
+        sum_writer.add_scalars('data/verb/prec/top1', {phase: data['verb_top1'].avg}, run_iter)
+        sum_writer.add_scalars('data/verb/prec/top5', {phase: data['verb_top5'].avg}, run_iter)
+        sum_writer.add_scalars('data/noun/prec/top1', {phase: data['noun_top1'].avg}, run_iter)
+        sum_writer.add_scalars('data/noun/prec/top5', {phase: data['noun_top5'].avg}, run_iter)
+
+        msg += '  Verb Loss {:.4f}, Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(
+            data['verb_losses'].avg, data['verb_top1'].avg, data['verb_top5'].avg)
+        msg += '  Noun Loss {:.4f}, Noun Prec@1 {:.3f}, Noun Prec@5 {:.3f}'.format(
+            data['noun_losses'].avg, data['noun_top1'].avg, data['noun_top5'].avg)
+    except KeyError:
+        pass
+
+    logger.info(msg)
