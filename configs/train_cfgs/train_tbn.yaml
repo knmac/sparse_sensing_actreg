@@ -1,0 +1,14 @@
+#batch_size: 16
+batch_size: 1
+num_workers: 4
+n_epochs: 80
+lr_steps: [60]
+clip_gradient: 20
+partialbn: True
+eval_freq: 1
+pretrain_flow_weight: True
+optimizer: 'SGD'
+optim_params:
+    lr: 0.01
+    momentum: 0.9
+    weight_decay: 5.e-4

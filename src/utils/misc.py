@@ -2,6 +2,7 @@
 import os
 import sys
 import glob
+import shutil
 import argparse
 
 import torch
@@ -23,7 +24,7 @@ logger = logging.get_logger(__name__)
 class MiscUtils:
 
     @staticmethod
-    def save_progress(model, optimizer, logdir, epoch):
+    def save_progress(model, optimizer, logdir, best_prec1, epoch, is_best=False):
         """Save the training progress for model and optimizer
 
         Data are saved as: [logdir]/epoch_[epoch].[extension]
@@ -33,14 +34,30 @@ class MiscUtils:
             optimizer: optimizer to save
             logdir: where to save data
             epoch: the current epoch
+            is_best: if True, will backup the best model
         """
         prefix = os.path.join(logdir, 'epoch_{:05d}'.format(epoch))
         logger.info('Saving to: %s' % prefix)
 
-        model.save_model(prefix+'.model')
-        torch.save(optimizer.state_dict(), prefix+'.opt')
-        torch.save(torch.get_rng_state(), prefix+'.rng')
-        torch.save(torch.cuda.get_rng_state(), prefix+'.curng')
+        try:
+            model.save_model(prefix+'.model')
+        except AttributeError:
+            model.module.save_model(prefix+'.model')
+        # torch.save(optimizer.state_dict(), prefix+'.opt')
+        # torch.save(torch.get_rng_state(), prefix+'.rng')
+        # torch.save(torch.cuda.get_rng_state(), prefix+'.curng')
+
+        data = {
+            'optimizer': optimizer.state_dict(),
+            'rng_state': torch.get_rng_state(),
+            'cuda_rng_state': torch.cuda.get_rng_state(),
+            'best_prec1': best_prec1,
+        }
+        torch.save(data, prefix+'.stat')
+
+        if is_best:
+            shutil.copyfile(os.path.join(prefix+'.model'),
+                            os.path.join(logdir, 'best.model'))
 
     @staticmethod
     def load_progress(model, optimizer, prefix):
@@ -60,14 +77,20 @@ class MiscUtils:
         logger.info('Loading from: %s' % prefix)
 
         model.load_model(prefix+'.model')
-        optimizer.load_state_dict(torch.load(prefix+'.opt'))
-        torch.set_rng_state(torch.load(prefix+'.rng'))
-        torch.cuda.set_rng_state(torch.load(prefix+'.curng'))
+        # optimizer.load_state_dict(torch.load(prefix+'.opt'))
+        # torch.set_rng_state(torch.load(prefix+'.rng'))
+        # torch.cuda.set_rng_state(torch.load(prefix+'.curng'))
+
+        data = torch.load(prefix+'stat')
+        optimizer.load_state_dict(data['optimizer'])
+        torch.set_rng_state(data['rng_state'])
+        torch.cuda.set_rng_state(data['cuda_rng_state'])
+        best_prec1 = data['best_prec1']
 
         lr = optimizer.param_groups[0]['lr']
         tmp = os.path.basename(prefix)
         next_epoch = int(tmp.replace('epoch_', '')) + 1
-        return lr, next_epoch
+        return lr, next_epoch, best_prec1
 
     @staticmethod
     def get_lastest_checkpoint(logdir, regex='epoch_*.model'):
@@ -211,5 +234,3 @@ class MiscUtils:
                     ToTorchFormatTensor(div=False),
                 ])
         return train_transform, val_transform
-
-

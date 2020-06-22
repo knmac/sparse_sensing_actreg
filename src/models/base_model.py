@@ -36,6 +36,10 @@ class BaseModel(nn.Module):
         state_dict = torch.load(path, map_location=self.device)
         self.load_state_dict(state_dict)
 
+    def freeze_fn(self, freeze_mode):
+        """Freeze parts of the model"""
+        pass
+
     def compute_loss(self, criterion, output, label):
         """Compute the default loss using the given criterion
 
