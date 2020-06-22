@@ -33,11 +33,6 @@ def parse_args():
     parser.add_argument('-t', '--train_cfg', type=str,
                         help='Path to the training config filename')
 
-    # Extra learning configs --> TODO: put in training config
-    parser.add_argument('--partialbn', '--pb', action='store_true')
-    parser.add_argument('--freeze', '-f', action='store_true',
-                        help='freeze all weights except fusion')
-
     # Runtime configs
     parser.add_argument('-i', '--is_training', type=MiscUtils.str2bool,
                         help='Whether is in training or testing mode')
