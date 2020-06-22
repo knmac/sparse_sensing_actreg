@@ -224,7 +224,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if run_iter % 100 == 0:
+        if run_iter % train_params['print_freq'] == 0:
             sum_writer.add_scalars('data/loss', {'training': losses.avg}, run_iter)
             sum_writer.add_scalar('data/epochs', epoch, run_iter)
             sum_writer.add_scalar('data/learning_rate', optimizer.param_groups[-1]['lr'], run_iter)
