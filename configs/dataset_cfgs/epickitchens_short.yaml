@@ -1,0 +1,13 @@
+dataset_name: 'epic_kitchens'
+dataset_params:
+    list_file:
+        train: 'dataset_splits/EPIC_KITCHENS_2018/EPIC_train_action_labels_short.pkl'
+        val:   'dataset_splits/EPIC_KITCHENS_2018/EPIC_val_action_labels_short.pkl'
+    visual_path: 'data/EPIC_KITCHENS_2018/frames_restruct'
+    audio_path: 'data/EPIC_KITCHENS_2018/audio_dict.pkl'
+    use_audio_dict: True
+    image_tmpl:
+        RGB: 'img_{:010d}.jpg'
+        Flow: '{}_{:010d}.jpg'
+    resampling_rate: 24000
+    fps: 60
