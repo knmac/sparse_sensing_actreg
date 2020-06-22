@@ -94,7 +94,8 @@ dependencies:
     - opencv-python==4.1.1.26
     - pandas==0.25.1
     - protobuf==3.9.2
-    - pyyaml==5.1.2
+    - pyyaml==5.3
     - sh==1.12.14
     - tensorboard==2.2.2
-    - tqdm==4.36.1
+    - tqdm==4.46.1
+    - msgpack==0.6.1
