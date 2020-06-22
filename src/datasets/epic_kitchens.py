@@ -53,6 +53,7 @@ class EpicKitchenDataset(BaseDataset):
                 dictionary or not.
         """
         super().__init__(mode)
+        self.name = 'epic_kitchens'
 
         if audio_path is not None:
             if not use_audio_dict:

@@ -49,6 +49,8 @@ class TestData(unittest.TestCase):
             transform=val_transform, **dataset_params,
         )
 
+        assert dataset.name == 'epic_kitchens'
+
         sample, label = dataset[0]
         # Check shape
         assert label['verb'] == 2
