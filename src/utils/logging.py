@@ -20,7 +20,7 @@ def setup_logging(log_fname=None):
     if log_fname is not None:
         # Make dir if not exists
         parent_dir = os.path.dirname(log_fname)
-        if not os.path.isdir(parent_dir):
+        if parent_dir != '' and not os.path.isdir(parent_dir):
             os.makedirs(parent_dir)
 
         my_handlers = [
