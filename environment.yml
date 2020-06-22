@@ -1,4 +1,4 @@
-name: tbn
+name: sparse_sensing
 channels:
   - pytorch
   - conda-forge
@@ -11,7 +11,7 @@ dependencies:
   - ca-certificates=2019.8.28
   - certifi=2019.9.11
   - cffi=1.12.3
-  - cudatoolkit=10.0.130
+  - cudatoolkit=9.2
   - cycler=0.10.0
   - dbus=1.13.6
   - decorator=4.4.0
@@ -67,7 +67,7 @@ dependencies:
   - pysoundfile=0.10.2
   - python=3.6.8
   - python-dateutil=2.8.0
-  - pytorch=1.1.0
+  - pytorch=1.4.0
   - pytz=2019.2
   - qt=5.9.7
   - readline=7.0
@@ -79,7 +79,7 @@ dependencies:
   - six=1.12.0
   - sqlite=3.29.0
   - tk=8.6.8
-  - torchvision=0.3.0
+  - torchvision=0.5.0
   - tornado=6.0.3
   - wheel=0.33.6
   - xz=5.2.4
@@ -96,5 +96,5 @@ dependencies:
     - protobuf==3.9.2
     - pyyaml==5.1.2
     - sh==1.12.14
-    - tensorboardx==1.8
+    - tensorboard==2.2.2
     - tqdm==4.36.1
