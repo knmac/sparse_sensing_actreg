@@ -7,6 +7,12 @@ sys.path.insert(0, os.path.abspath(
 
 from src.datasets.epic_kitchens import EpicKitchenDataset
 from src.models.tbn import TBN
+from src.models.pipeline_simple import PipelineSimple
+from src.models.tbn_feat import TBNFeat
+from src.models.id_model import IdModel
+from src.models.id_time_sampler import IdTimeSampler
+from src.models.id_space_sampler import IdSpaceSampler
+from src.models.fusion_classification_network_cat import Fusion_Classification_Network_Cat
 
 import src.utils.logging as logging
 
@@ -60,6 +66,13 @@ class ModelFactory(BaseFactory):
         self.info_msg = 'Generating model'
         self.objfn_dict = {
             'TBN': TBN,
+            # ---
+            'PipelineSimple': PipelineSimple,
+            'TBNFeat': TBNFeat,
+            'IdModel': IdModel,
+            'IdTimeSampler': IdTimeSampler,
+            'IdSpaceSampler': IdSpaceSampler,
+            'Fusion_Classification_Network_Cat': Fusion_Classification_Network_Cat,
         }
 
     def generate(self, model_name, **kwargs):

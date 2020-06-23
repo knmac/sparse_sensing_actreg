@@ -18,16 +18,7 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
     """Training and validation routine. It will call val() automatically
     """
     # Get param_groups for optimizer
-    if len(model.modality) > 1:
-        # TODO: modularize this, especially fusion_classification_net -> put in model
-        param_groups = [
-            {'params': filter(lambda p: p.requires_grad, model.rgb.parameters())},
-            {'params': filter(lambda p: p.requires_grad, model.flow.parameters()), 'lr': 0.001},
-            {'params': filter(lambda p: p.requires_grad, model.spec.parameters())},
-            {'params': filter(lambda p: p.requires_grad, model.fusion_classification_net.parameters())},
-        ]
-    else:
-        param_groups = filter(lambda p: p.requires_grad, model.parameters())
+    param_groups = model.get_param_groups()
 
     # Create optimizer
     if train_params['optimizer'] == 'SGD':
@@ -69,7 +60,6 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
                                    sum_writer, run_iter+len(train_loader))
 
             # Remember best prec@1 and save checkpoint
-            # TODO: save the whole val metrics
             prec1 = val_metrics['val_acc']
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
@@ -118,7 +108,10 @@ def _setup_training(model, optimizer, train_params, args):
         state_dict = torch.load(pretrained)
         for k, v in state_dict.items():
             state_dict[k] = torch.squeeze(v, dim=0)
-        base_model = getattr(model, 'flow')
+        try:
+            base_model = getattr(model, 'flow')
+        except AttributeError:
+            base_model = getattr(model.light_model, 'flow')
         base_model.load_state_dict(state_dict, strict=False)
     elif train_mode == 'resume':
         logger.info('Resume training from a checkpoint')
@@ -258,7 +251,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     return training_metrics
 
 
-def validate(model, device, criterion, val_loader, sum_writer, run_iter):
+def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=None):
     """Validate a trained model
     """
     dataset = val_loader.dataset.name
@@ -354,20 +347,22 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
     """Wrapper to print message and writer summary"""
     msg = msg_prefix
 
-    sum_writer.add_scalars('data/loss', {phase: data['losses'].avg}, run_iter)
-    sum_writer.add_scalars('data/prec/top1', {phase: data['top1'].avg}, run_iter)
-    sum_writer.add_scalars('data/prec/top5', {phase: data['top5'].avg}, run_iter)
+    if (sum_writer is not None) and (run_iter is not None):
+        sum_writer.add_scalars('data/loss', {phase: data['losses'].avg}, run_iter)
+        sum_writer.add_scalars('data/prec/top1', {phase: data['top1'].avg}, run_iter)
+        sum_writer.add_scalars('data/prec/top5', {phase: data['top5'].avg}, run_iter)
 
     msg += '  Loss {:.4f}, Prec@1 {:.3f}, Prec@5 {:.3f}\n'.format(
         data['losses'].avg, data['top1'].avg, data['top5'].avg)
 
     try:
-        sum_writer.add_scalars('data/verb/loss', {phase: data['verb_losses'].avg}, run_iter)
-        sum_writer.add_scalars('data/noun/loss', {phase: data['noun_losses'].avg}, run_iter)
-        sum_writer.add_scalars('data/verb/prec/top1', {phase: data['verb_top1'].avg}, run_iter)
-        sum_writer.add_scalars('data/verb/prec/top5', {phase: data['verb_top5'].avg}, run_iter)
-        sum_writer.add_scalars('data/noun/prec/top1', {phase: data['noun_top1'].avg}, run_iter)
-        sum_writer.add_scalars('data/noun/prec/top5', {phase: data['noun_top5'].avg}, run_iter)
+        if (sum_writer is not None) and (run_iter is not None):
+            sum_writer.add_scalars('data/verb/loss', {phase: data['verb_losses'].avg}, run_iter)
+            sum_writer.add_scalars('data/noun/loss', {phase: data['noun_losses'].avg}, run_iter)
+            sum_writer.add_scalars('data/verb/prec/top1', {phase: data['verb_top1'].avg}, run_iter)
+            sum_writer.add_scalars('data/verb/prec/top5', {phase: data['verb_top5'].avg}, run_iter)
+            sum_writer.add_scalars('data/noun/prec/top1', {phase: data['noun_top1'].avg}, run_iter)
+            sum_writer.add_scalars('data/noun/prec/top5', {phase: data['noun_top5'].avg}, run_iter)
 
         msg += '  Verb Loss {:.4f}, Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(
             data['verb_losses'].avg, data['verb_top1'].avg, data['verb_top5'].avg)

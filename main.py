@@ -146,7 +146,12 @@ def main(args):
 
     # Build model
     model_factory = ModelFactory()
-    model = model_factory.generate(model_name, device=device, **model_params)
+    try:
+        model = model_factory.generate(model_name, device=device, **model_params)
+    except TypeError:
+        # The pipeline requires model_factory to generate child models
+        model = model_factory.generate(
+            model_name, device=device, model_factory=model_factory, **model_params)
 
     # Get training augmentation and transforms
     train_augmentation = MiscUtils.get_train_augmentation(model.modality, model.crop_size)
@@ -188,7 +193,7 @@ def main(args):
         # Test routine
         model.load_model(args.pretrained_model_path)
         # writer = SummaryWriter(log_dir=args.logdir)
-        validate(model, device, criterion, test_loader)  # TODO
+        validate(model, device, criterion, test_loader)
         # test(model, criterion, test_loader, device, writer, 0)
     return 0
 

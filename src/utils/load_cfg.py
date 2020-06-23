@@ -41,6 +41,8 @@ class ConfigLoader:
             The model parameters as a dictionary
         """
         cfg = ConfigLoader._load_yaml_content(fname)
+        if cfg['model_params'] is None:
+            cfg['model_params'] = {}
         return cfg['model_name'], cfg['model_params']
 
     @staticmethod

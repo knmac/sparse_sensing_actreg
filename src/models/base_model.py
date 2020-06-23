@@ -56,3 +56,9 @@ class BaseModel(nn.Module):
             global_step: global step value to record
         """
         pass
+
+    def get_param_groups(self):
+        """Wrapper to get param_groups for optimizer
+        """
+        param_groups = filter(lambda p: p.requires_grad, self.parameters())
+        return param_groups

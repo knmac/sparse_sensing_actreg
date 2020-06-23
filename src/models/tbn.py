@@ -291,3 +291,17 @@ TSN Configurations:
     def scale_size(self):
         scale_size = {k: v * 256 // 224 for k, v in self.input_size.items()}
         return scale_size
+
+    def get_param_groups(self):
+        """Wrapper to get param_groups for optimizer
+        """
+        if len(self.modality) > 1:
+            param_groups = [
+                {'params': filter(lambda p: p.requires_grad, self.rgb.parameters())},
+                {'params': filter(lambda p: p.requires_grad, self.flow.parameters()), 'lr': 0.001},
+                {'params': filter(lambda p: p.requires_grad, self.spec.parameters())},
+                {'params': filter(lambda p: p.requires_grad, self.fusion_classification_net.parameters())},
+            ]
+        else:
+            param_groups = filter(lambda p: p.requires_grad, self.parameters())
+        return param_groups
