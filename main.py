@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Main code for train/val/test"""
 import sys
 import os

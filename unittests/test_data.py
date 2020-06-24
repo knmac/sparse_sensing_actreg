@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Test datasets"""
 import sys
 import os

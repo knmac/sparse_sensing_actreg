@@ -20,6 +20,10 @@ class ConfigLoader:
         Return:
             content: content of the YAML file
         """
+        # Try to use absolute path if file not found
+        if not os.path.isfile(fname):
+            root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+            fname = os.path.join(root, fname)
         assert os.path.isfile(fname), 'Config file not found: {}'.format(fname)
 
         with open(fname, 'r') as stream:

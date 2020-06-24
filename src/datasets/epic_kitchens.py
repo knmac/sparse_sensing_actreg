@@ -54,14 +54,27 @@ class EpicKitchenDataset(BaseDataset):
         """
         super().__init__(mode)
         self.name = 'epic_kitchens'
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
         if audio_path is not None:
             if not use_audio_dict:
+                if not os.path.isdir(audio_path):
+                    audio_path = os.path.join(root, audio_path)
                 self.audio_path = Path(audio_path)
             else:
-                self.audio_path = pickle.load(open(audio_path, 'rb'))
+                if not os.path.isfile(audio_path):
+                    audio_path = os.path.join(root, audio_path)
+                with open(audio_path, 'rb') as stream:
+                    self.audio_path = pickle.load(stream)
+
+        if not os.path.isdir(visual_path):
+            visual_path = os.path.join(root, visual_path)
         self.visual_path = visual_path
+
+        if not os.path.isfile(list_file[mode]):
+            list_file[mode] = os.path.join(root, list_file[mode])
         self.list_file = pd.read_pickle(list_file[mode])
+
         self.num_segments = num_segments
         self.new_length = new_length
         self.modality = modality

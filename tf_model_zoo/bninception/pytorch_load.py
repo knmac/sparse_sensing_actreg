@@ -1,3 +1,5 @@
+import os
+import sys
 import torch
 from torch import nn
 from .layer_factory import get_basic_layer, parse_expr
@@ -10,7 +12,18 @@ class BNInception(nn.Module):
                        weight_url='https://yjxiong.blob.core.windows.net/models/bn_inception-9f5701afb96c8044.pth'):
         super(BNInception, self).__init__()
 
-        manifest = yaml.load(open(model_path))
+        # Try to use absolute path if file not found
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        if not os.path.isfile(model_path):
+            model_path = os.path.join(root, model_path)
+
+        with open(model_path, 'r') as stream:
+            try:
+                manifest = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+                sys.exit(-1)
+        # manifest = yaml.load(open(model_path))
 
         layers = manifest['layers']
 
@@ -37,7 +50,11 @@ class BNInception(nn.Module):
         # E.g. fc becomes (num_features) from (1, num_features)
         # Squeeze unnecessary dimensions.
 
-        state_dict = torch.utils.model_zoo.load_url(weight_url)
+        try:
+            state_dict = torch.utils.model_zoo.load_url(weight_url)
+        except PermissionError:
+            model_dir = os.path.join(root, '.cache/torch/checkpoints')
+            state_dict = torch.utils.model_zoo.load_url(weight_url, model_dir=model_dir)
 
         for k, v in state_dict.items():
             state_dict[k] = torch.squeeze(v, dim=0)
