@@ -104,7 +104,10 @@ def _setup_training(model, optimizer, train_params, args):
         # model.load_model(pretrained_model_path)
         # TODO: only support pretrained flow weight for now
         logger.info('Initialize Flow stream from Kinetics')
-        pretrained = os.path.join('pretrained/kinetics_tsn_flow.pth.tar')
+        pretrained = 'pretrained/kinetics_tsn_flow.pth.tar'
+        if not os.path.isfile(pretrained):
+            root = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+            pretrained = os.path.join(root, pretrained)
         state_dict = torch.load(pretrained)
         for k, v in state_dict.items():
             state_dict[k] = torch.squeeze(v, dim=0)
