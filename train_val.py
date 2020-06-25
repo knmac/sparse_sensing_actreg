@@ -45,8 +45,6 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
     # -------------------------------------------------------------------------
     # Go through all epochs
     for epoch in range(start_epoch, train_params['n_epochs']):
-        logger.info('epoch: %d/%d' % (epoch+1, train_params['n_epochs']))
-
         # Training phase
         run_iter = epoch * len(train_loader)
         _train_one_epoch(
@@ -143,9 +141,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     # Switch to train mode
     model.train()
 
-    if train_params['freeze']:
-        model.module.freeze_fn('partialbn_statistics')
     if train_params['partialbn']:
+        model.module.freeze_fn('partialbn_statistics')
+    if train_params['freeze']:
         model.module.freeze_fn('bn_statistics')
 
     # Prepare metrics
