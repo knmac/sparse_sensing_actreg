@@ -45,6 +45,8 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
     # -------------------------------------------------------------------------
     # Go through all epochs
     for epoch in range(start_epoch, train_params['n_epochs']):
+        scheduler.step()
+
         # Training phase
         run_iter = epoch * len(train_loader)
         _train_one_epoch(
@@ -62,9 +64,6 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
             MiscUtils.save_progress(model, optimizer, args.logdir, best_prec1, epoch, is_best)
-
-        # Update scheduler
-        scheduler.step()
 
     # Done training
     sum_writer.close()
