@@ -3,7 +3,7 @@ num_workers: 4
 n_epochs: 3
 lr_steps: [1]  # Epochs to decay learning rate by 10
 print_freq: 20  # Print frequency
-clip_gradient: 20  # Gradient norm clipping. Default = None
+clip_gradient: 20.0  # Gradient norm clipping. Default = None
 partialbn: True 
 freeze: False  # freeze all weights except fusion
 eval_freq: 1

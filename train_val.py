@@ -136,7 +136,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     """Train one single epoch
     """
     dataset = train_loader.dataset.name
-    clip_gradient = train_params['clip_gradient']
+    clip_gradient = float(train_params['clip_gradient'])
 
     # Switch to train mode
     model.train()
@@ -220,7 +220,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         end = time.time()
 
         # Print out message
-        if run_iter % train_params['print_freq'] == 0:
+        if i % train_params['print_freq'] == 0:
             _lr = optimizer.param_groups[-1]['lr']
 
             sum_writer.add_scalar('data/epochs', epoch, run_iter)
