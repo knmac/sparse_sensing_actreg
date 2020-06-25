@@ -1,3 +1,5 @@
+import sys
+import os
 from collections import OrderedDict
 
 import torch
@@ -5,6 +7,12 @@ from torch import nn
 
 from .fusion_classification_network import Fusion_Classification_Network
 from .base_model import BaseModel
+
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..', '..')))
+import src.utils.logging as logging
+
+logger = logging.get_logger(__name__)
 
 
 class TBN(BaseModel):
@@ -34,7 +42,7 @@ class TBN(BaseModel):
         else:
             self.new_length = new_length
 
-        print(("""
+        msg = ("""
 Initializing TSN with base model: {}.
 TSN Configurations:
     input_modality:     {}
@@ -42,7 +50,8 @@ TSN Configurations:
     new_length:         {}
     consensus_module:   {}
     dropout_ratio:      {}
-        """.format(base_model, self.modality, self.num_segments, self.new_length, consensus_type, self.dropout)))
+        """.format(base_model, self.modality, self.num_segments, self.new_length, consensus_type, self.dropout))
+        logger.info(msg)
 
         self._prepare_base_model(base_model)
 
@@ -52,19 +61,17 @@ TSN Configurations:
         is_diff = any(m == 'RGBDiff' for m in self.modality)
         is_spec = any(m == 'Spec' for m in self.modality)
         if is_flow:
-            print("Converting the ImageNet model to a flow init model")
+            logger.info("Converting the ImageNet model to a flow init model")
             self.base_model['Flow'] = self._construct_flow_model(self.base_model['Flow'])
-            print("Done. Flow model ready...")
+            logger.info("Done. Flow model ready...")
         if is_diff:
-            print("Converting the ImageNet model to RGB+Diff init model")
+            logger.info("Converting the ImageNet model to RGB+Diff init model")
             self.base_model['RGBDiff'] = self._construct_diff_model(self.base_model['RGBDiff'])
-            print("Done. RGBDiff model ready.")
+            logger.info("Done. RGBDiff model ready.")
         if is_spec:
-            print("Converting the ImageNet model to a spectrogram init model")
+            logger.info("Converting the ImageNet model to a spectrogram init model")
             self.base_model['Spec'] = self._construct_spec_model(self.base_model['Spec'])
-            print("Done. Spec model ready.")
-
-        print('\n')
+            logger.info("Done. Spec model ready.")
 
         for m in self.modality:
             self.add_module(m.lower(), self.base_model[m])
@@ -111,7 +118,7 @@ TSN Configurations:
     def freeze_fn(self, freeze_mode):
         if freeze_mode == 'modalities':
             for m in self.modality:
-                print('Freezing ' + m + ' stream\'s parameters')
+                logger.info('Freezing ' + m + ' stream\'s parameters')
                 base_model = getattr(self, m.lower())
                 for param in base_model.parameters():
                     param.requires_grad_(False)
@@ -119,7 +126,7 @@ TSN Configurations:
         elif freeze_mode == 'partialbn_parameters':
             for mod in self.modality:
                 count = 0
-                print("Freezing BatchNorm2D parameters except the first one.")
+                logger.info("Freezing BatchNorm2D parameters except the first one.")
                 base_model = getattr(self, mod.lower())
                 for m in base_model.modules():
                     if isinstance(m, nn.BatchNorm2d):
@@ -132,7 +139,7 @@ TSN Configurations:
         elif freeze_mode == 'partialbn_statistics':
             for mod in self.modality:
                 count = 0
-                print("Freezing BatchNorm2D statistics except the first one.")
+                logger.info("Freezing BatchNorm2D statistics except the first one.")
                 base_model = getattr(self, mod.lower())
                 for m in base_model.modules():
                     if isinstance(m, nn.BatchNorm2d):
@@ -142,7 +149,7 @@ TSN Configurations:
                             m.eval()
         elif freeze_mode == 'bn_statistics':
             for mod in self.modality:
-                print("Freezing BatchNorm2D statistics.")
+                logger.info("Freezing BatchNorm2D statistics.")
                 base_model = getattr(self, mod.lower())
                 for m in base_model.modules():
                     if isinstance(m, nn.BatchNorm2d):
