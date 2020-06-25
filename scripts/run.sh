@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 python main.py \
     --model_cfg   'configs/model_cfgs/tbn.yaml' \
     --dataset_cfg 'configs/dataset_cfgs/epickitchens.yaml' \
