@@ -60,7 +60,7 @@ class MiscUtils:
                             os.path.join(logdir, 'best.model'))
 
     @staticmethod
-    def load_progress(model, optimizer, prefix):
+    def load_progress(model, optimizer, device, prefix):
         """Load the training progress for model and optimizer
 
         Data are loaded from: [prefix].[extension]
@@ -68,6 +68,7 @@ class MiscUtils:
         Args:
             model: model to load
             optimizer: optimizer to load
+            deivce: device to transfer the optimizer states to
             prefix: prefix with the format [logdir]/epoch_[epoch]
 
         Return:
@@ -81,7 +82,7 @@ class MiscUtils:
         # torch.set_rng_state(torch.load(prefix+'.rng'))
         # torch.cuda.set_rng_state(torch.load(prefix+'.curng'))
 
-        data = torch.load(prefix+'stat')
+        data = torch.load(prefix+'.stat')
         optimizer.load_state_dict(data['optimizer'])
         torch.set_rng_state(data['rng_state'])
         torch.cuda.set_rng_state(data['cuda_rng_state'])
@@ -90,6 +91,12 @@ class MiscUtils:
         lr = optimizer.param_groups[0]['lr']
         tmp = os.path.basename(prefix)
         next_epoch = int(tmp.replace('epoch_', '')) + 1
+
+        # Individually transfer the optimizer parts
+        for state in optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(device)
         return lr, next_epoch, best_prec1
 
     @staticmethod

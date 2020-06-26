@@ -37,7 +37,8 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
     # TODO: stats_dict ?
 
     # Setup training starting point
-    start_epoch, lr, model, best_prec1 = _setup_training(model, optimizer, train_params, args)
+    start_epoch, lr, model, best_prec1 = _setup_training(
+        model, optimizer, device, train_params, args)
 
     # Train with multiple GPUs
     model = torch.nn.DataParallel(model, device_ids=args.gpus).to(device)
@@ -55,7 +56,8 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
 
         # Validation phase
         # TODO: check the case when there's no validation set
-        if ((epoch + 1) % train_params['eval_freq'] == 0) or ((epoch + 1) == train_params['n_epochs']):
+        if ((epoch + 1) % train_params['eval_freq'] == 0) or \
+                ((epoch + 1) == train_params['n_epochs']):
             val_metrics = validate(model, device, criterion, val_loader,
                                    sum_writer, run_iter+len(train_loader))
 
@@ -63,13 +65,14 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
             prec1 = val_metrics['val_acc']
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
-            MiscUtils.save_progress(model, optimizer, args.logdir, best_prec1, epoch, is_best)
+            MiscUtils.save_progress(model, optimizer, args.savedir, best_prec1,
+                                    epoch, is_best)
 
     # Done training
     sum_writer.close()
 
 
-def _setup_training(model, optimizer, train_params, args):
+def _setup_training(model, optimizer, device, train_params, args):
     """Set up training model, optimizer and get starting epoch and lr
 
     Args:
@@ -85,7 +88,7 @@ def _setup_training(model, optimizer, train_params, args):
         best_prec1: current best prec@1
     """
     train_mode = args.train_mode
-    logdir = args.logdir
+    savedir = args.savedir
     # pretrained_model_path = args.pretrained_model_path
 
     # By default, start_epoch = 0, lr from train parameters
@@ -115,8 +118,9 @@ def _setup_training(model, optimizer, train_params, args):
         base_model.load_state_dict(state_dict, strict=False)
     elif train_mode == 'resume':
         logger.info('Resume training from a checkpoint')
-        prefix = MiscUtils.get_lastest_checkpoint(logdir)
-        lr, start_epoch, best_prec1 = MiscUtils.load_progress(model, optimizer, prefix)
+        prefix = MiscUtils.get_lastest_checkpoint(savedir)
+        lr, start_epoch, best_prec1 = MiscUtils.load_progress(model, optimizer,
+                                                              device, prefix)
     else:
         raise ValueError('Unsupported train_mode: {}'.format(train_mode))
 

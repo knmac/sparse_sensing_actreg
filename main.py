@@ -10,7 +10,6 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-# from torch.utils.tensorboard import SummaryWriter
 
 from train_val import train_val, validate
 from src.utils.load_cfg import ConfigLoader
@@ -42,6 +41,8 @@ def parse_args():
                         help='Which mode to start the training from')
     parser.add_argument('-l', '--logdir', type=str, default='logs',
                         help='Directory to store the log')
+    parser.add_argument('-s', '--savedir', type=str, default='saved_models',
+                        help='Directory to store the trained models')
     parser.add_argument('--log_fname', type=str, default=None,
                         help='Path to the file to store running log '
                              '(beside showing to stdout)')
@@ -49,6 +50,8 @@ def parse_args():
     parser.add_argument('--gpus', nargs='+', type=int, default=None)
     parser.add_argument('--experiment_suffix', type=str, default='',
                         help='Addtional suffix for experiment')
+    parser.add_argument('--resume_timestamp', type=str, default=None,
+                        help='Timestamp to resume the experiment')
 
     # parser.add_argument(
     #     '--pretrained_model_path', type=str, default='',
@@ -91,6 +94,7 @@ def gen_experiment_name(dataset_name, model_name, model_params, train_params, ar
         experiment_name: (str) name of the experiment
         experiment_dir: (str) experiment_name with timestamp directory
         log_dir: (str) log_dir with experiment_dir
+        save_dir: (str) save_dir with experiment_dir
     """
     experiment_name = '_'.join([
         dataset_name,
@@ -103,9 +107,22 @@ def gen_experiment_name(dataset_name, model_name, model_params, train_params, ar
         'lr_st' + '_'.join([str(x) for x in train_params['lr_steps']]),
         args.experiment_suffix,
     ])
-    experiment_dir = os.path.join(experiment_name, datetime.now().strftime('%b%d_%H-%M-%S'))
+
+    # Generate or recover timestamp
+    if args.train_mode == 'resume':
+        assert args.resume_timestamp is not None
+        timestamp = args.resume_timestamp
+    else:
+        timestamp = datetime.now().strftime('%b%d_%H-%M-%S')
+
+    # Generate dir names
+    experiment_dir = os.path.join(experiment_name, timestamp)
     logdir = os.path.join(args.logdir, experiment_dir)
-    return experiment_name, experiment_dir, logdir
+    savedir = os.path.join(args.savedir, experiment_dir)
+
+    os.makedirs(logdir, exist_ok=True)
+    os.makedirs(savedir, exist_ok=True)
+    return experiment_name, experiment_dir, logdir, savedir
 
 
 def main(args):
@@ -128,9 +145,10 @@ def main(args):
     })
 
     # Generate logdir with experiment name
-    _, _, logdir = gen_experiment_name(
+    _, _, logdir, savedir = gen_experiment_name(
         dataset_name, model_name, model_params, train_params, args)
     args.logdir = logdir
+    args.savedir = savedir
 
     # Set up device, use GPU if possible
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -183,8 +201,6 @@ def main(args):
 
         # Train/val routine
         train_val(model, device, criterion, train_loader, val_loader, train_params, args)
-        # train(model, optimizer, criterion, train_loader, val_loader, args.logdir,
-        #       args.train_mode, train_params, device, args.pretrained_model_path)
     else:
         # Create data loader for testing
         test_dataset = dataset_factory.generate(
@@ -193,9 +209,7 @@ def main(args):
 
         # Test routine
         model.load_model(args.pretrained_model_path)
-        # writer = SummaryWriter(log_dir=args.logdir)
         validate(model, device, criterion, test_loader)
-        # test(model, criterion, test_loader, device, writer, 0)
     return 0
 
 

@@ -5,4 +5,5 @@ python main.py \
     --train_cfg   'configs/train_cfgs/train_tbn_short.yaml' \
     --is_training true \
     --train_mode  'from_pretrained' \
-    --logdir      'logs'
+    --logdir      'logs' \
+    --savedir     'saved_models'

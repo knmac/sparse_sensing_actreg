@@ -2,6 +2,8 @@ data
 data/
 logs
 logs/
+saved_models
+saved_models/
 .flake8
 .vim/
 tags
