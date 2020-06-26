@@ -75,8 +75,7 @@ class PipelineSimple(BaseModel):
         return output
 
     def freeze_fn(self, freeze_mode):
-        # TODO: implement this
-        raise NotImplementedError
+        self.light_model.freeze_fn(freeze_mode)
 
     @property
     def input_mean(self):
