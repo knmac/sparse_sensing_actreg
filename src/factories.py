@@ -13,6 +13,7 @@ from src.models.id_model import IdModel
 from src.models.id_time_sampler import IdTimeSampler
 from src.models.id_space_sampler import IdSpaceSampler
 from src.models.fusion_classification_network_cat import Fusion_Classification_Network_Cat
+from src.models.sub_bninception import SubBNInception
 
 import src.utils.logging as logging
 
@@ -73,6 +74,7 @@ class ModelFactory(BaseFactory):
             'IdTimeSampler': IdTimeSampler,
             'IdSpaceSampler': IdSpaceSampler,
             'Fusion_Classification_Network_Cat': Fusion_Classification_Network_Cat,
+            'SubBNInception': SubBNInception,
         }
 
     def generate(self, model_name, **kwargs):
