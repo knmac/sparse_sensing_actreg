@@ -116,7 +116,7 @@ class TestGradCam(unittest.TestCase):
         grad_cam = GradCam(device=device, model=model,
                            feature_module=model.inception_5b_relu_pool_proj,
                            use_bninception=True)
-        img, input = get_input()
+        img, input = get_input(means=[104, 107, 128], stds=[1, 1, 1])
 
         model = model.to(device)
         input = input.to(device)
