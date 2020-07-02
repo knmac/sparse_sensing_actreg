@@ -114,9 +114,9 @@ class TestGradCam(unittest.TestCase):
         model = model_factory.generate(
             full_cfg['model_name'], **full_cfg['model_params']).to(device)
         grad_cam = GradCam(device=device, model=model,
-                           feature_module=model.inception_5b_relu_pool_proj,
+                           feature_module='inception_5b_output',
                            use_bninception=True)
-        img, input = get_input(means=[104, 107, 128], stds=[1, 1, 1])
+        img, input = get_input()
 
         model = model.to(device)
         input = input.to(device)
