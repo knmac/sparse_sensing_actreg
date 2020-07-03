@@ -14,7 +14,8 @@ from skimage.transform import resize
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..')))
 
-from src.models.grad_cam import GradCam
+from src.models.gradcam.grad_cam import GradCam
+from src.models.gradcam.grad_cam_bninception import GradCamBNInception
 from src.factories import ModelFactory
 
 device = torch.device('cuda')
@@ -113,9 +114,8 @@ class TestGradCam(unittest.TestCase):
 
         model = model_factory.generate(
             full_cfg['model_name'], **full_cfg['model_params']).to(device)
-        grad_cam = GradCam(device=device, model=model,
-                           feature_module='inception_5b_output',
-                           use_bninception=True)
+        grad_cam = GradCamBNInception(
+            device=device, model=model, feature_module='inception_5b_output')
         img, input = get_input()
 
         model = model.to(device)
