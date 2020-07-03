@@ -69,7 +69,6 @@ class PipelineSimple(BaseModel):
         x = self.light_model(x)
         x = self.time_sampler(x, self.heavy_model)
         x = self.space_sampler(x)
-        # return x
         output = self.actreg_model(x)
 
         return output

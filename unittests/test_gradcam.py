@@ -16,6 +16,8 @@ sys.path.insert(0, os.path.abspath(
 
 from src.models.gradcam.grad_cam import GradCam
 from src.models.gradcam.grad_cam_bninception import GradCamBNInception
+from src.models.gradcam.grad_cam_pipeline import GradCamPipeline
+from src.utils.load_cfg import ConfigLoader
 from src.factories import ModelFactory
 
 device = torch.device('cuda')
@@ -127,6 +129,36 @@ class TestGradCam(unittest.TestCase):
 
         # mask_ = mask.detach().cpu().numpy()
         # show_cam_on_image(img, mask_[0], fname='cam.jpg')
+
+    def test_pipeline(self):
+        """Test GradCam with pipeline"""
+        model_cfg = 'configs/model_cfgs/pipeline_simple.yaml'
+        model_name, model_params = ConfigLoader.load_model_cfg(model_cfg)
+        model_factory = ModelFactory()
+
+        # Build pipeline
+        model = model_factory.generate(
+            model_name, device=device, model_factory=model_factory, **model_params)
+        model.to(device)
+
+        # Forward a random input
+        b_size = 5
+        n_segments = 3
+        sample = {
+            'RGB': torch.rand([b_size, n_segments*3, 224, 224]).to(device).requires_grad_(True),
+            'Flow': torch.rand([b_size, n_segments*10, 224, 224]).to(device).requires_grad_(True),
+            'Spec': torch.rand([b_size, n_segments*1, 256, 256]).to(device).requires_grad_(True),
+        }
+
+        # GradCAM
+        grad_cam = GradCamPipeline(
+            device, model, component=model.light_model,
+            chosen_modality='RGB', output_type='verb',
+            feature_module='inception_4a_output'
+        )
+        mask = grad_cam(sample, indices=None, resize=True)
+
+        assert mask.shape == torch.Size([b_size, n_segments, 224, 224])
 
 
 if __name__ == '__main__':
