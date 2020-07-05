@@ -156,9 +156,10 @@ class TestGradCam(unittest.TestCase):
             chosen_modality='RGB', output_type='verb',
             feature_module='inception_4a_output'
         )
-        mask = grad_cam(sample, indices=None, resize=True)
+        mask, feat = grad_cam(sample, indices=None, resize=True)
 
         assert mask.shape == torch.Size([b_size, n_segments, 224, 224])
+        assert feat.shape == torch.Size([b_size, n_segments, 576, 14, 14])
 
 
 if __name__ == '__main__':

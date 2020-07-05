@@ -13,7 +13,7 @@ class GradCamPipeline():
         self.output_type = output_type
         self.extractor = _PipelineOutputs(model, component, chosen_modality, feature_module)
 
-    def __call__(self, inputs, indices=None, resize=True):
+    def __call__(self, inputs, indices=None, keep_negative=False, resize=True, new_size=None):
         """Get the saliency masks from a batch of inputs
 
         Args:
@@ -22,12 +22,18 @@ class GradCamPipeline():
                 dim of each frame
             indices: indices of classes to backprop from. If None, pick the
                 classes with the highest scores
+            keep_negative: whether to keep negative values of GradCAM. If False,
+                will remove them (ReLU)
             resize: whether to resize the output to input shape
+            new_size: only valid if resize is True. If new_size is None, reuse
+                the input size, otherwise use new_size
 
         Return:
             cam: saliency masks of shape (B, T, H', W') where (H', W') is the
                 size of target feature. If resize is True, the masks are
                 resized to (B, T, H, W).
+            target: target feature of shape (B, T, D, H', W'), where D is the
+                feature dimension
         """
         for k in inputs:
             inputs[k].requires_grad_(True)
@@ -82,9 +88,12 @@ class GradCamPipeline():
             cam += weights[:, :, i].unsqueeze(-1).unsqueeze(-1) * target[:, :, i, :, :]
 
         # Postprocess cam
-        cam = torch.clamp(cam, 0)
+        if not keep_negative:
+            cam = torch.clamp(cam, 0)
         if resize:
-            cam = F.interpolate(cam, size=inputs[self.chosen_modality].shape[2:],
+            if new_size is None:
+                new_size = inputs[self.chosen_modality].shape[2:]
+            cam = F.interpolate(cam, size=new_size,
                                 mode='bilinear', align_corners=False)
         cam = cam - cam.min()
         cam = cam / cam.max()
@@ -93,7 +102,7 @@ class GradCamPipeline():
         if was_training:
             self.model.train()
 
-        return cam
+        return cam, target
 
 
 class _PipelineOutputs():
