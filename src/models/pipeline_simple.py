@@ -96,10 +96,23 @@ class PipelineSimple(BaseModel):
         """Wrapper to get param_groups for optimizer
         """
         if len(self.modality) > 1:
-            param_groups = [
-                {'params': filter(lambda p: p.requires_grad, self.light_model.rgb.parameters())},
-                {'params': filter(lambda p: p.requires_grad, self.light_model.flow.parameters()), 'lr': 0.001},
-                {'params': filter(lambda p: p.requires_grad, self.light_model.spec.parameters())},
+            param_groups = []
+            try:
+                param_groups.append({'params': filter(lambda p: p.requires_grad, self.light_model.rgb.parameters())})
+            except AttributeError:
+                pass
+
+            try:
+                param_groups.append({'params': filter(lambda p: p.requires_grad, self.light_model.flow.parameters()), 'lr': 0.001})
+            except AttributeError:
+                pass
+
+            try:
+                param_groups.append({'params': filter(lambda p: p.requires_grad, self.light_model.spec.parameters())})
+            except AttributeError:
+                pass
+
+            param_groups += [
                 {'params': filter(lambda p: p.requires_grad, self.heavy_model.parameters())},
                 {'params': filter(lambda p: p.requires_grad, self.time_sampler.parameters())},
                 {'params': filter(lambda p: p.requires_grad, self.space_sampler.parameters())},

@@ -303,12 +303,30 @@ TSN Configurations:
         """Wrapper to get param_groups for optimizer
         """
         if len(self.modality) > 1:
-            param_groups = [
-                {'params': filter(lambda p: p.requires_grad, self.rgb.parameters())},
-                {'params': filter(lambda p: p.requires_grad, self.flow.parameters()), 'lr': 0.001},
-                {'params': filter(lambda p: p.requires_grad, self.spec.parameters())},
-                {'params': filter(lambda p: p.requires_grad, self.fusion_classification_net.parameters())},
-            ]
+            param_groups = []
+            try:
+                param_groups.append({'params': filter(lambda p: p.requires_grad, self.rgb.parameters())})
+            except AttributeError:
+                pass
+
+            try:
+                param_groups.append({'params': filter(lambda p: p.requires_grad, self.flow.parameters()), 'lr': 0.001})
+            except AttributeError:
+                pass
+
+            try:
+                param_groups.append({'params': filter(lambda p: p.requires_grad, self.spec.parameters())})
+            except AttributeError:
+                pass
+
+            param_groups.append({'params': filter(lambda p: p.requires_grad, self.fusion_classification_net.parameters())})
+
+            # param_groups = [
+            #     {'params': filter(lambda p: p.requires_grad, self.rgb.parameters())},
+            #     {'params': filter(lambda p: p.requires_grad, self.flow.parameters()), 'lr': 0.001},
+            #     {'params': filter(lambda p: p.requires_grad, self.spec.parameters())},
+            #     {'params': filter(lambda p: p.requires_grad, self.fusion_classification_net.parameters())},
+            # ]
         else:
             param_groups = filter(lambda p: p.requires_grad, self.parameters())
         return param_groups

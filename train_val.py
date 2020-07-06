@@ -102,20 +102,24 @@ def _setup_training(model, optimizer, device, train_params, args):
     elif train_mode == 'from_pretrained':
         # logger.info('Load pretrained weights')
         # model.load_model(pretrained_model_path)
+
         # TODO: only support pretrained flow weight for now
-        logger.info('Initialize Flow stream from Kinetics')
-        pretrained = 'pretrained/kinetics_tsn_flow.pth.tar'
-        if not os.path.isfile(pretrained):
-            root = os.path.abspath(os.path.join(os.path.dirname(__file__)))
-            pretrained = os.path.join(root, pretrained)
-        state_dict = torch.load(pretrained)
-        for k, v in state_dict.items():
-            state_dict[k] = torch.squeeze(v, dim=0)
-        try:
-            base_model = getattr(model, 'flow')
-        except AttributeError:
-            base_model = getattr(model.light_model, 'flow')
-        base_model.load_state_dict(state_dict, strict=False)
+        if 'flow' in [x.lower() for x in model.modality]:
+            logger.info('Initialize Flow stream from Kinetics')
+            pretrained = 'pretrained/kinetics_tsn_flow.pth.tar'
+            if not os.path.isfile(pretrained):
+                root = os.path.abspath(os.path.join(os.path.dirname(__file__)))
+                pretrained = os.path.join(root, pretrained)
+            state_dict = torch.load(pretrained)
+            for k, v in state_dict.items():
+                state_dict[k] = torch.squeeze(v, dim=0)
+            try:
+                base_model = getattr(model, 'flow')
+            except AttributeError:
+                base_model = getattr(model.light_model, 'flow')
+            base_model.load_state_dict(state_dict, strict=False)
+        else:
+            logger.info('Flow modality not being used. Start training from scratch')
     elif train_mode == 'resume':
         logger.info('Resume training from a checkpoint')
         prefix = MiscUtils.get_lastest_checkpoint(savedir)
