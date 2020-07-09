@@ -110,6 +110,29 @@ class TestModel(unittest.TestCase):
         assert torch.all(out1[0] == out2[0])
         assert torch.all(out1[1] == out2[1])
 
+    def test_san_model(self):
+        model_cfg = 'configs/model_cfgs/san10_multi_pairwise.yaml'
+        model_name, model_params = ConfigLoader.load_model_cfg(model_cfg)
+        model_factory = ModelFactory()
+        device = torch.device('cuda')
+
+        model_params.update({
+            'num_class': [125, 352],
+            'num_segments': 3,
+            'modality': ['RGB', 'Flow', 'Spec'],
+        })
+
+        model = model_factory.generate(model_name, device=device, **model_params)
+        model.to(device)
+
+        sample = {
+            'RGB': torch.rand([1, 9, 224, 224]).to(device),
+            'Flow': torch.rand([1, 30, 224, 224]).to(device),
+            'Spec': torch.rand([1, 3, 256, 256]).to(device),
+        }
+        out = model(sample)
+        assert out.shape == torch.Size([3, 2048*3])
+
 
 if __name__ == '__main__':
     unittest.main()

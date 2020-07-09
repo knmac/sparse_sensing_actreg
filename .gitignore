@@ -9,6 +9,7 @@ saved_models/
 tags
 .ctagsignore
 pretrained/*.tar
+pretrained/san_imagenet/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
