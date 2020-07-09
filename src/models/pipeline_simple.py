@@ -57,8 +57,7 @@ class PipelineSimple(BaseModel):
             'modality': self.modality,
             'num_class': self.num_class,
             'num_segments': self.num_segments,
-            'before_softmax': self.light_model.before_softmax,
-            'dropout': self.light_model.dropout,
+            'dropout': self.dropout,
         })
         self.actreg_model = model_factory.generate(name, device=device, **params)
 

@@ -21,7 +21,7 @@ class SANMulti(BaseModel):
 
     def __init__(self, device, num_segments, modality,
                  san_sa_type, san_layers, san_kernels,
-                 san_pretrained_weights=None, new_length=None):
+                 san_pretrained_weights=None, new_length=None, **kwargs):
         super(SANMulti, self).__init__(device)
         # self.num_class = num_class
         self.modality = modality
