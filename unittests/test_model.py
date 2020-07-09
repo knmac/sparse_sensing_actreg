@@ -111,13 +111,17 @@ class TestModel(unittest.TestCase):
         assert torch.all(out1[1] == out2[1])
 
     def test_san_model(self):
-        model_cfg = 'configs/model_cfgs/san10_multi_pairwise.yaml'
-        model_name, model_params = ConfigLoader.load_model_cfg(model_cfg)
+        # model_cfg = 'configs/model_cfgs/san10_multi_pairwise.yaml'
+        # model_cfg = 'configs/model_cfgs/san10_multi_patchwise.yaml'
+        # model_cfg = 'configs/model_cfgs/san15_multi_pairwise.yaml'
+        # model_cfg = 'configs/model_cfgs/san15_multi_patchwise.yaml'
+        # model_cfg = 'configs/model_cfgs/san19_multi_pairwise.yaml'
+        model_cfg = 'configs/model_cfgs/san19_multi_patchwise.yaml'
+
         model_factory = ModelFactory()
         device = torch.device('cuda')
-
+        model_name, model_params = ConfigLoader.load_model_cfg(model_cfg)
         model_params.update({
-            'num_class': [125, 352],
             'num_segments': 3,
             'modality': ['RGB', 'Flow', 'Spec'],
         })

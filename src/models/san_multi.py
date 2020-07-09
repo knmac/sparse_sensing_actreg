@@ -1,4 +1,4 @@
-"""Wrapper for multiple modalities with SAN backbone
+"""Wrapper for multiple modalities with SAN backbone. Only for feature extraction
 """
 import sys
 import os
@@ -19,11 +19,11 @@ logger = logging.get_logger(__name__)
 
 class SANMulti(BaseModel):
 
-    def __init__(self, device, num_class, num_segments, modality,
+    def __init__(self, device, num_segments, modality,
                  san_sa_type, san_layers, san_kernels,
                  san_pretrained_weights=None, new_length=None):
         super(SANMulti, self).__init__(device)
-        self.num_class = num_class
+        # self.num_class = num_class
         self.modality = modality
         self.num_segments = num_segments
         self.new_length = OrderedDict()
