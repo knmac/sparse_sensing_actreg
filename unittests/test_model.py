@@ -137,6 +137,29 @@ class TestModel(unittest.TestCase):
         out = model(sample)
         assert out.shape == torch.Size([3, 2048*3])
 
+    def test_pipeline_hallu(self):
+        """Test pipeline with attention hallucination"""
+        model_cfg = 'configs/model_cfgs/pipeline_rgbspec_san10pair_gruhallu.yaml'
+        model_name, model_params = ConfigLoader.load_model_cfg(model_cfg)
+        model_factory = ModelFactory()
+
+        # Build pipeline
+        device = torch.device('cuda')
+        model = model_factory.generate(
+            model_name, device=device, model_factory=model_factory, **model_params)
+        model.to(device)
+
+        # Forward a random input
+        sample = {
+            'RGB': torch.rand([2, 9, 224, 224]).to(device),
+            'Spec': torch.rand([2, 3, 256, 256]).to(device),
+        }
+        model(sample)
+
+        attn = model._attn
+        hallu = model._hallu
+        assert attn.shape == hallu.shape
+
 
 if __name__ == '__main__':
     unittest.main()

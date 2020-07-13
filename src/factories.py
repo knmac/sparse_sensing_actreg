@@ -15,6 +15,8 @@ from src.models.id_space_sampler import IdSpaceSampler
 from src.models.fusion_classification_network_cat import Fusion_Classification_Network_Cat
 from src.models.sub_bninception import SubBNInception
 from src.models.san_multi import SANMulti
+from src.models.pipeline import Pipeline
+from src.models.gru_hallu import GRUHallu
 
 import src.utils.logging as logging
 
@@ -77,6 +79,9 @@ class ModelFactory(BaseFactory):
             'Fusion_Classification_Network_Cat': Fusion_Classification_Network_Cat,
             'SubBNInception': SubBNInception,
             'SANMulti': SANMulti,
+            # ---
+            'Pipeline': Pipeline,
+            'GRUHallu': GRUHallu,
         }
 
     def generate(self, model_name, **kwargs):
