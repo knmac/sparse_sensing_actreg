@@ -78,7 +78,6 @@ class SANMulti(BaseModel):
                 kernels=self.san_kernels,
                 num_classes=1000,  # Final fc will be removed later
             )
-            self.base_model[m].get_attention_weights()
             self.input_size[m] = 224
             self.input_std[m] = [1]
 

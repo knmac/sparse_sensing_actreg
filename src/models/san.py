@@ -29,6 +29,7 @@ class SAM(nn.Module):
     def __init__(self, sa_type, in_planes, rel_planes, out_planes, share_planes, kernel_size=3, stride=1, dilation=1):
         super(SAM, self).__init__()
         self.sa_type, self.kernel_size, self.stride = sa_type, kernel_size, stride
+        self.dilation = dilation
         self.conv1 = nn.Conv2d(in_planes, rel_planes, kernel_size=1)
         self.conv2 = nn.Conv2d(in_planes, rel_planes, kernel_size=1)
         self.conv3 = nn.Conv2d(in_planes, out_planes, kernel_size=1)
@@ -137,8 +138,12 @@ class SAN(nn.Module):
             x = self.fc(x)
         return x
 
-    def get_attention_weights(self):
-        """Get attention weights in the SAM modules. Require to run forward first
+    def get_all_attention_weights(self, aggregated):
+        """Get attention weights in all SAM modules of the model. Require to
+        run forward first.
+
+        Args:
+            aggregated: (bool) whether to aggregate the attention weights
 
         Return:
             att: an ordered dictionary as follow:
@@ -158,10 +163,72 @@ class SAN(nn.Module):
             layer = getattr(self, l_name)
             att[l_name] = OrderedDict()
             for m_name in layer._modules.keys():
-                if hasattr(layer._modules[m_name].sam, '_weight'):
-                    att[l_name][m_name] = layer._modules[m_name].sam._weight
+                item = layer._modules[m_name].sam
+                if hasattr(item, '_weight'):
+                    _weight = item._weight
+                    if aggregated:
+                        _weight = self._aggreate_attention(
+                            _weight, item.kernel_size, item.stride, item.dilation)
+
+                    att[l_name][m_name] = _weight
                 else:
                     att[l_name][m_name] = None
+        return att
+
+    def get_attention_weight(self, l_name, m_name, aggregated):
+        """Get attention weight at a certain layer and module. Require to run
+        forward first
+
+        Args:
+            l_name: (str) name of the layer
+            m_name: (str) name of the module
+            aggregated: (bool) whether to aggregate the weight across footprint
+
+        Return:
+            weight: attention weight at the layer/module needed
+        """
+        layer = getattr(self, l_name)
+        item = layer._modules[m_name].sam
+        if not hasattr(item, '_weight'):
+            return None
+
+        weight = item._weight
+        if aggregated:
+            weight = self._aggreate_attention(weight, item.kernel_size,
+                                              item.stride, item.dilation)
+        return weight
+
+    def _aggreate_attention(self, weight, kernel_size, stride=1, dilation=1):
+        """Aggregate the attention weight across footprint using cum sum
+
+        Args:
+            weight: attention weight to aggregate
+            kernel_size: size of the footprint kernel
+            stride: (only support stride=1 for now)
+            dilation: (only support dilation=1 for now)
+
+        Return:
+            att: aggregated attention weight
+        """
+        assert stride == 1 and dilation == 1, \
+            'Only support stride and dilation of 1 for now'
+        assert weight.shape[2] == kernel_size * kernel_size, \
+            'Mismatching kernel_size'
+        assert weight.shape[3] == int(weight.shape[3]**0.5)**2, \
+            'Input shape is not square'
+        batch, weight_channels, _, input_size = weight.shape
+        input_size = int(input_size**0.5)
+        weight = weight.reshape([batch, weight_channels, kernel_size, kernel_size, input_size, input_size])
+
+        out_size = input_size + kernel_size - 1
+        att_pad = torch.zeros([batch, weight_channels, out_size, out_size], dtype=torch.float32).cuda()
+
+        # Aggregate by cum sum
+        for i in range(kernel_size):
+            for j in range(kernel_size):
+                att_pad[:, :, i:i+input_size, j:j+input_size] += weight[:, :, i, j]
+        pad = kernel_size // 2
+        att = att_pad[:, :, pad:-pad, pad:-pad]
         return att
 
 
