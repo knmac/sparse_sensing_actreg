@@ -176,27 +176,38 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         # Measure data loading time
         data_time.update(time.time() - end)
 
+        # Get the actual batch size
+        batch_size = sample[model.module.modality[0]].size(0)
+
         # Place input sample on the correct device for all modalities
         for k in sample.keys():
             sample[k] = sample[k].to(device)
 
         # Forward
-        output = model(sample)
+        if has_belief:
+            output, loss_belief = model(sample)
+            # Average across multiple devices, if necessary
+            # Not using mean because each GPU may receive different batchsize
+            loss_belief = loss_belief.sum() / batch_size
+        else:
+            output = model(sample)
 
         # Compute metrics
-        batch_size = sample[model.module.modality[0]].size(0)
         if dataset != 'epic_kitchens':
             target = target.to(device)
-            loss = criterion(output, target)
+            if has_belief:
+                loss = 0.5*(criterion(output, target) + loss_belief)
+                belief_losses.update(loss_belief.item(), batch_size)
+            else:
+                loss = criterion(output, target)
             prec1, prec5 = accuracy(output, target, topk=(1, 5))
         else:
             target = {k: v.to(device) for k, v in target.items()}
             loss_verb = criterion(output[0], target['verb'])
             loss_noun = criterion(output[1], target['noun'])
             if has_belief:
-                loss_belief = model.module.compare_belief()
-                belief_losses.update(loss_belief.item(), batch_size)
                 loss = (loss_verb + loss_noun + loss_belief) / 3.0
+                belief_losses.update(loss_belief.item(), batch_size)
             else:
                 loss = 0.5 * (loss_verb + loss_noun)
             verb_losses.update(loss_verb.item(), batch_size)
@@ -406,6 +417,6 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
         pass
 
     if 'belief_losses' in data.keys():
-        msg += '  Belief Loss {:.4f}\n'.format(data['belief_losses'].avg)
+        msg += '\n  Belief Loss {:.4f}'.format(data['belief_losses'].avg)
 
     logger.info(msg)

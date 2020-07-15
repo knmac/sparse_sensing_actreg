@@ -91,6 +91,12 @@ class GRUHallu(BaseModel):
             output: classification results
             hallu: hallucination results
         """
+        # Fix the warning: RNN module weights are not part of single contiguous
+        # chunk of memory. This means they need to be compacted at every call,
+        # possibly greatly increasing memory usage. To compact weights again
+        # call flatten_parameters().
+        self.rnn.flatten_parameters()
+
         # Fusion with fc layer
         x = self.relu(self.fc1(x))
 

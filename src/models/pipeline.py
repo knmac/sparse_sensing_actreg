@@ -61,7 +61,7 @@ class Pipeline(BaseModel):
         self.actreg_model = model_factory.generate(name, device=device, **params)
 
         # Loss for belief propagation
-        self.mse_criterion = torch.nn.MSELoss()  # TODO: check parameter
+        self.mse_criterion = torch.nn.MSELoss()
 
     def forward(self, x):
         """Forward function for training"""
@@ -85,15 +85,20 @@ class Pipeline(BaseModel):
         output, hallu = self.actreg_model(x)
         self._hallu = hallu
 
-        return output
+        return output, self.compare_belief()
 
     def compare_belief(self):
-        """Compare between attention and hallucination
+        """Compare between attention and hallucination. Do NOT call directly.
+
+        If using multiple GPUs, self._hallu and self._attn will not be available
         """
-        assert self._attn.shape == self._hallu.shape, 'Mismatching shape'
+        assert hasattr(self, '_attn') and hasattr(self, '_hallu'), \
+            'Attributes are not found'
+        assert self._attn.shape == self._hallu.shape, 'Mismatching shapes'
         assert torch.all(self._attn >= 0) and torch.all(self._hallu >= 0)
-        # TODO: sigmoid, tanh???
-        # Change the range ??
+
+        # TODO: sigmoid, tanh??
+        # Change the range??
 
         # Get attention of future frames
         attn_future = self._attn[:, 1:]
