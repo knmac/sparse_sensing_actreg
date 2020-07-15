@@ -1,6 +1,6 @@
 batch_size: 1
 num_workers: 1
-n_epochs: 100
+n_epochs: 3
 lr_steps: [30, 60, 90]  # Epochs to decay learning rate by 10
 print_freq: 20  # Print frequency
 clip_gradient: 20.0  # Gradient norm clipping. Default = None
