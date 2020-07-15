@@ -60,6 +60,9 @@ class Pipeline(BaseModel):
         })
         self.actreg_model = model_factory.generate(name, device=device, **params)
 
+        # Loss for belief propagation
+        self.mse_criterion = torch.nn.MSELoss()  # TODO: check parameter
+
     def forward(self, x):
         """Forward function for training"""
         # Light weight model and earlier attention
@@ -84,12 +87,23 @@ class Pipeline(BaseModel):
 
         return output
 
-    def compare_belief(self, attn, hallu):
-        assert attn.shape == hallu.shape
+    def compare_belief(self):
+        """Compare between attention and hallucination
+        """
+        assert self._attn.shape == self._hallu.shape, 'Mismatching shape'
+        assert torch.all(self._attn >= 0) and torch.all(self._hallu >= 0)
         # TODO: sigmoid, tanh???
-        # Change the range
-        # hallu = torch.sigmoid(hallu)
-        return
+        # Change the range ??
+
+        # Get attention of future frames
+        attn_future = self._attn[:, 1:]
+
+        # Get hallucination from current frames (for future frames)
+        hallu_current = self._hallu[:, :-1]
+
+        # Compare belief using MSE loss
+        loss_belief = self.mse_criterion(hallu_current, attn_future)
+        return loss_belief
 
     def freeze_fn(self, freeze_mode):
         self.light_model.freeze_fn(freeze_mode)

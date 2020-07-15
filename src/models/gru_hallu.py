@@ -114,8 +114,6 @@ class GRUHallu(BaseModel):
 
         Args:
             x: input feature of shape (B, T, D)
-
-
         """
         B, T, D = x.shape
         assert T == self.num_segments
@@ -125,7 +123,7 @@ class GRUHallu(BaseModel):
         x = x.reshape(B*T, D)
 
         # (B*T, D) --> (B*T, C*H*W)
-        x = self.fc_hallu(x)
+        x = self.relu(self.fc_hallu(x))
 
         # (B*T, C*H*W) --> (B, T, C, H, W)
         x = x.reshape([B, T] + self.hallu_dim)

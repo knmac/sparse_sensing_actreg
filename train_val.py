@@ -144,6 +144,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     """
     dataset = train_loader.dataset.name
     clip_gradient = float(train_params['clip_gradient'])
+    has_belief = hasattr(model.module, 'compare_belief')
 
     # Switch to train mode
     model.train()
@@ -166,6 +167,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         verb_top5 = AverageMeter()
         noun_top1 = AverageMeter()
         noun_top5 = AverageMeter()
+    if has_belief:
+        belief_losses = AverageMeter()
 
     # Training loop
     end = time.time()
@@ -190,7 +193,12 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
             target = {k: v.to(device) for k, v in target.items()}
             loss_verb = criterion(output[0], target['verb'])
             loss_noun = criterion(output[1], target['noun'])
-            loss = 0.5 * (loss_verb + loss_noun)
+            if has_belief:
+                loss_belief = model.module.compare_belief()
+                belief_losses.update(loss_belief.item(), batch_size)
+                loss = (loss_verb + loss_noun + loss_belief) / 3.0
+            else:
+                loss = 0.5 * (loss_verb + loss_noun)
             verb_losses.update(loss_verb.item(), batch_size)
             noun_losses.update(loss_noun.item(), batch_size)
 
@@ -243,6 +251,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                     'verb_losses': verb_losses, 'verb_top1': verb_top1, 'verb_top5': verb_top5,
                     'noun_losses': noun_losses, 'noun_top1': noun_top1, 'noun_top5': noun_top5,
                 })
+            if has_belief:
+                log_content.update({'belief_losses': belief_losses})
 
             _log_message('training', sum_writer, run_iter, log_content, msg_prefix)
 
@@ -256,6 +266,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                             'train_acc': top1.avg,
                             'train_verb_acc': verb_top1.avg,
                             'train_noun_acc': noun_top1.avg}
+    if has_belief:
+        training_metrics.update({'train_belief_loss': belief_losses.avg})
     return training_metrics
 
 
@@ -263,6 +275,7 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
     """Validate a trained model
     """
     dataset = val_loader.dataset.name
+    has_belief = hasattr(model.module, 'compare_belief')
 
     # Swith to eval mode
     model.eval()
@@ -280,6 +293,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             verb_top5 = AverageMeter()
             noun_top1 = AverageMeter()
             noun_top5 = AverageMeter()
+        if has_belief:
+            belief_losses = AverageMeter()
 
         # Validation loop
         end = time.time()
@@ -301,7 +316,12 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                 target = {k: v.to(device) for k, v in target.items()}
                 loss_verb = criterion(output[0], target['verb'])
                 loss_noun = criterion(output[1], target['noun'])
-                loss = 0.5 * (loss_verb + loss_noun)
+                if has_belief:
+                    loss_belief = model.module.compare_belief()
+                    belief_losses.update(loss_belief.item(), batch_size)
+                    loss = (loss_verb + loss_noun + loss_belief) / 3.0
+                else:
+                    loss = 0.5 * (loss_verb + loss_noun)
                 verb_losses.update(loss_verb.item(), batch_size)
                 noun_losses.update(loss_noun.item(), batch_size)
 
@@ -336,6 +356,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                 'verb_losses': verb_losses, 'verb_top1': verb_top1, 'verb_top5': verb_top5,
                 'noun_losses': noun_losses, 'noun_top1': noun_top1, 'noun_top5': noun_top5,
             })
+        if has_belief:
+            log_content.update({'belief_losses': belief_losses})
         _log_message('validation', sum_writer, run_iter, log_content, msg_prefix)
 
         # Collect validation metrics
@@ -348,6 +370,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                            'val_acc': top1.avg,
                            'val_verb_acc': verb_top1.avg,
                            'val_noun_acc': noun_top1.avg}
+        if has_belief:
+            val_metrics.update({'val_belief_loss': belief_losses.avg})
         return val_metrics
 
 
@@ -371,6 +395,8 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
             sum_writer.add_scalars('data/verb/prec/top5', {phase: data['verb_top5'].avg}, run_iter)
             sum_writer.add_scalars('data/noun/prec/top1', {phase: data['noun_top1'].avg}, run_iter)
             sum_writer.add_scalars('data/noun/prec/top5', {phase: data['noun_top5'].avg}, run_iter)
+            if 'belief_losses' in data.keys():
+                sum_writer.add_scalars('data/belief/loss', {phase: data['belief_losses'].avg}, run_iter)
 
         msg += '  Verb Loss {:.4f}, Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(
             data['verb_losses'].avg, data['verb_top1'].avg, data['verb_top5'].avg)
@@ -378,5 +404,8 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
             data['noun_losses'].avg, data['noun_top1'].avg, data['noun_top5'].avg)
     except KeyError:
         pass
+
+    if 'belief_losses' in data.keys():
+        msg += '  Belief Loss {:.4f}\n'.format(data['belief_losses'].avg)
 
     logger.info(msg)
