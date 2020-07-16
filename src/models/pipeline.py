@@ -85,7 +85,7 @@ class Pipeline(BaseModel):
         output, hallu = self.actreg_model(x)
         self._hallu = hallu
 
-        return output, self.compare_belief()
+        return output, self.compare_belief().unsqueeze(dim=0)
 
     def compare_belief(self):
         """Compare between attention and hallucination. Do NOT call directly.

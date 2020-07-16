@@ -4,6 +4,7 @@ import sys
 import os
 import argparse
 import random
+import faulthandler
 from datetime import datetime
 
 import numpy as np
@@ -19,6 +20,7 @@ from src.utils.misc import MiscUtils
 import src.utils.logging as logging
 
 logger = logging.get_logger(__name__)
+faulthandler.enable()
 
 
 def parse_args():

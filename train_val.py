@@ -34,8 +34,6 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
     # Summary writer
     sum_writer = SummaryWriter(log_dir=args.logdir)
 
-    # TODO: stats_dict ?
-
     # Setup training starting point
     start_epoch, lr, model, best_prec1 = _setup_training(
         model, optimizer, device, train_params, args)
@@ -49,6 +47,7 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
         scheduler.step()
 
         # Training phase
+        logger.info('Training...')
         run_iter = epoch * len(train_loader)
         _train_one_epoch(
             model, device, criterion, train_loader, optimizer, sum_writer,
@@ -56,6 +55,7 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
 
         # Validation phase
         # TODO: check the case when there's no validation set
+        logger.info('Testing...')
         if ((epoch + 1) % train_params['eval_freq'] == 0) or \
                 ((epoch + 1) == train_params['n_epochs']):
             val_metrics = validate(model, device, criterion, val_loader,
@@ -89,7 +89,6 @@ def _setup_training(model, optimizer, device, train_params, args):
     """
     train_mode = args.train_mode
     savedir = args.savedir
-    # pretrained_model_path = args.pretrained_model_path
 
     # By default, start_epoch = 0, lr from train parameters
     start_epoch = 0
@@ -176,9 +175,6 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         # Measure data loading time
         data_time.update(time.time() - end)
 
-        # Get the actual batch size
-        batch_size = sample[model.module.modality[0]].size(0)
-
         # Place input sample on the correct device for all modalities
         for k in sample.keys():
             sample[k] = sample[k].to(device)
@@ -187,12 +183,12 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         if has_belief:
             output, loss_belief = model(sample)
             # Average across multiple devices, if necessary
-            # Not using mean because each GPU may receive different batchsize
-            loss_belief = loss_belief.sum() / batch_size
+            loss_belief = loss_belief.mean()
         else:
             output = model(sample)
 
         # Compute metrics
+        batch_size = sample[model.module.modality[0]].size(0)
         if dataset != 'epic_kitchens':
             target = target.to(device)
             if has_belief:
@@ -310,9 +306,6 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         # Validation loop
         end = time.time()
         for i, (sample, target) in enumerate(val_loader):
-            # Get the actual batch size
-            batch_size = sample[model.module.modality[0]].size(0)
-
             # Place input sample on the correct device for all modalities
             for k in sample.keys():
                 sample[k] = sample[k].to(device)
@@ -320,11 +313,12 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             # Forward
             if has_belief:
                 output, loss_belief = model(sample)
-                loss_belief = loss_belief.sum() / batch_size
+                loss_belief = loss_belief.mean()
             else:
                 output = model(sample)
 
             # Compute metrics
+            batch_size = sample[model.module.modality[0]].size(0)
             if dataset != 'epic_kitchens':
                 target = target.to(device)
                 if has_belief:
