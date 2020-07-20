@@ -40,6 +40,8 @@ def main(args):
     print(content[best_idx+1])
     print(content[best_idx+2])
     print(content[best_idx+3])
+    if (best_idx+4 < len(content)) and (content[best_idx+4].startswith('  Belief Loss')):
+        print(content[best_idx+4])
     return 0
 
 
