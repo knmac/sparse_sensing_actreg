@@ -38,15 +38,34 @@ class SANMulti(BaseModel):
         self.san_layers = san_layers
         self.san_kernels = san_kernels
 
+        # Get the pretrained weight and convert to dictionary if neccessary
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-        if (san_pretrained_weights is not None) and (not os.path.isfile(san_pretrained_weights)):
-            san_pretrained_weights = os.path.join(root, san_pretrained_weights)
-        self.san_pretrained_weights = san_pretrained_weights
+        # if (san_pretrained_weights is not None) and (not os.path.isfile(san_pretrained_weights)):
+        #     san_pretrained_weights = os.path.join(root, san_pretrained_weights)
+        # self.san_pretrained_weights = san_pretrained_weights
+        if san_pretrained_weights is not None:
+            # If str -> all modalities are init using the same weight
+            if isinstance(san_pretrained_weights, str):
+                if not os.path.isfile(san_pretrained_weights):
+                    san_pretrained_weights = os.path.join(root, san_pretrained_weights)
+                self.san_pretrained_weights = {m: san_pretrained_weights for m in modality}
+            # If dict -> each modality is init differently
+            elif isinstance(san_pretrained_weights, dict):
+                self.san_pretrained_weights = {}
+                for m in modality:
+                    if not os.path.isfile(san_pretrained_weights[m]):
+                        san_pretrained_weights[m] = os.path.join(root, san_pretrained_weights[m])
+                self.san_pretrained_weights = san_pretrained_weights
+            else:
+                raise 'san_pretrained_weights must be string or dictionary'
+        else:
+            self.san_pretrained_weights = {m: None for m in modality}
 
         # Prepare SAN basemodels
+        self._load_weight_later = []
         self._prepare_base_model()
 
-        # Prepare the flow and spec modalities
+        # Prepare the flow and spec modalities by replacing the 1st layer
         is_flow = any(m == 'Flow' for m in self.modality)
         is_spec = any(m == 'Spec' for m in self.modality)
         if is_flow:
@@ -58,6 +77,27 @@ class SANMulti(BaseModel):
             self.base_model['Spec'] = self._construct_spec_model(self.base_model['Spec'])
             logger.info('Done. Spec model ready.')
 
+        # Load the weights if could not load before
+        if len(self._load_weight_later) != 0:
+            for m in self._load_weight_later:
+                if os.path.isfile(self.san_pretrained_weights[m]):
+                    checkpoint = torch.load(self.san_pretrained_weights[m])
+
+                    # Remove `module.` from keys
+                    state_dict = {k.replace('module.', ''): v
+                                  for k, v in checkpoint['state_dict'].items()}
+                    self.base_model[m].load_state_dict(state_dict, strict=True)
+                    logger.info('Reloaded pretrained weight for SAN modality: {}'.format(m))
+                else:
+                    logger.info('Not loading pretrained model for modality {}!'.format(m))
+        del self._load_weight_later
+
+        # Remove the last fc layer
+        for m in self.modality:
+            last_layer_name = 'fc'
+            delattr(self.base_model[m], last_layer_name)
+
+        # Add base models as modules
         for m in self.modality:
             self.add_module(m.lower(), self.base_model[m])
 
@@ -89,20 +129,20 @@ class SANMulti(BaseModel):
                 self.input_mean[m] = [104, 117, 128]
 
             # Load pretrained weights
-            if os.path.isfile(self.san_pretrained_weights):
-                logger.info('Loading pretrained weight for SAN model...')
-                checkpoint = torch.load(self.san_pretrained_weights)
+            if os.path.isfile(self.san_pretrained_weights[m]):
+                logger.info('Loading pretrained weight for SAN modality: {}'.format(m))
+                checkpoint = torch.load(self.san_pretrained_weights[m])
 
                 # Remove `module.` from keys
                 state_dict = {k.replace('module.', ''): v
                               for k, v in checkpoint['state_dict'].items()}
-                self.base_model[m].load_state_dict(state_dict, strict=True)
+                try:
+                    self.base_model[m].load_state_dict(state_dict, strict=True)
+                except RuntimeError:
+                    logger.info('Cannot load. Will conver and load later...')
+                    self._load_weight_later.append(m)
             else:
-                logger.info('Not loading pretrained model for init!')
-
-            # Remove last layer
-            last_layer_name = 'fc'
-            delattr(self.base_model[m], last_layer_name)
+                logger.info('Not loading pretrained model for modality {}!'.format(m))
 
     def _construct_flow_model(self, base_model):
         """Covert ImageNet model to flow init model"""
