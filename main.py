@@ -129,8 +129,7 @@ def gen_experiment_name(dataset_name, model_name, model_params, train_params, ar
 
 def main(args):
     """Main function"""
-    # Set up logging and fix random seeds
-    logging.setup_logging(args.log_fname)
+    # Fix random seeds
     fix_seeds()
 
     # -------------------------------------------------------------------------
@@ -151,6 +150,11 @@ def main(args):
         dataset_name, model_name, model_params, train_params, args)
     args.logdir = logdir
     args.savedir = savedir
+
+    # Setup logging
+    if args.log_fname is not None:
+        args.log_fname = os.path.join(args.logdir, args.log_fname)
+    logging.setup_logging(args.log_fname)
 
     # Set up device, use GPU if possible
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
