@@ -13,6 +13,8 @@ from src.utils.metrics import AverageMeter, accuracy, multitask_accuracy
 
 logger = logging.get_logger(__name__)
 
+__DEBUG_NOBELIEF__ = False
+
 
 def train_val(model, device, criterion, train_loader, val_loader, train_params, args):
     """Training and validation routine. It will call val() automatically
@@ -183,7 +185,11 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         if has_belief:
             output, loss_belief = model(sample)
             # Average across multiple devices, if necessary
-            loss_belief = loss_belief.mean()
+            if __DEBUG_NOBELIEF__:
+                loss_belief = torch.Tensor([-1.0])
+                loss_belief.requires_grad = False
+            else:
+                loss_belief = loss_belief.mean()
         else:
             output = model(sample)
 
@@ -191,7 +197,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         batch_size = sample[model.module.modality[0]].size(0)
         if dataset != 'epic_kitchens':
             target = target.to(device)
-            if has_belief:
+            # if has_belief:
+            if has_belief and (not __DEBUG_NOBELIEF__):
                 loss = 0.5*(criterion(output, target) + loss_belief)
                 belief_losses.update(loss_belief.item(), batch_size)
             else:
@@ -201,7 +208,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
             target = {k: v.to(device) for k, v in target.items()}
             loss_verb = criterion(output[0], target['verb'])
             loss_noun = criterion(output[1], target['noun'])
-            if has_belief:
+            # if has_belief:
+            if has_belief and (not __DEBUG_NOBELIEF__):
                 loss = (loss_verb + loss_noun + loss_belief) / 3.0
                 belief_losses.update(loss_belief.item(), batch_size)
             else:
@@ -313,7 +321,11 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             # Forward
             if has_belief:
                 output, loss_belief = model(sample)
-                loss_belief = loss_belief.mean()
+                if __DEBUG_NOBELIEF__:
+                    loss_belief = torch.Tensor([-1.0])
+                    loss_belief.requires_grad = False
+                else:
+                    loss_belief = loss_belief.mean()
             else:
                 output = model(sample)
 
@@ -321,7 +333,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             batch_size = sample[model.module.modality[0]].size(0)
             if dataset != 'epic_kitchens':
                 target = target.to(device)
-                if has_belief:
+                # if has_belief:
+                if has_belief and (not __DEBUG_NOBELIEF__):
                     loss = 0.5*(criterion(output, target) + loss_belief)
                     belief_losses.update(loss_belief.item(), batch_size)
                 else:
@@ -331,7 +344,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                 target = {k: v.to(device) for k, v in target.items()}
                 loss_verb = criterion(output[0], target['verb'])
                 loss_noun = criterion(output[1], target['noun'])
-                if has_belief:
+                # if has_belief:
+                if has_belief and (not __DEBUG_NOBELIEF__):
                     loss = (loss_verb + loss_noun + loss_belief) / 3.0
                     belief_losses.update(loss_belief.item(), batch_size)
                 else:
