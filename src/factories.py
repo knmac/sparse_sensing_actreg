@@ -17,6 +17,7 @@ from src.models.sub_bninception import SubBNInception
 from src.models.san_multi import SANMulti
 from src.models.pipeline import Pipeline
 from src.models.gru_hallu import GRUHallu
+from src.models.avg_hallu import AvgHallu
 
 import src.utils.logging as logging
 
@@ -82,6 +83,7 @@ class ModelFactory(BaseFactory):
             # ---
             'Pipeline': Pipeline,
             'GRUHallu': GRUHallu,
+            'AvgHallu': AvgHallu,
         }
 
     def generate(self, model_name, **kwargs):
