@@ -139,7 +139,7 @@ class SANMulti(BaseModel):
                 try:
                     self.base_model[m].load_state_dict(state_dict, strict=True)
                 except RuntimeError:
-                    logger.info('Cannot load. Will conver and load later...')
+                    logger.info('Cannot load. Will convert and load later...')
                     self._load_weight_later.append(m)
             else:
                 logger.info('Not loading pretrained model for modality {}!'.format(m))
