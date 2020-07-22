@@ -21,7 +21,7 @@ class EpicKitchenDataset(BaseDataset):
     def __init__(self, mode, list_file, new_length, modality, image_tmpl,
                  visual_path=None, audio_path=None, fps=29.94,
                  resampling_rate=44000, num_segments=3, transform=None,
-                 use_audio_dict=True):
+                 use_audio_dict=True, to_shuffle=True):
         """Initialize the dataset
 
         Each sample will be organized as a dictionary as follow
@@ -51,6 +51,7 @@ class EpicKitchenDataset(BaseDataset):
                 the mode.
             use_audio_dict: (bool) whether the audio_path is pointed to a
                 dictionary or not.
+            to_shuffle: (bool) whether to shuffle non-rgb modalities in training
         """
         super().__init__(mode)
         self.name = 'epic_kitchens'
@@ -83,6 +84,7 @@ class EpicKitchenDataset(BaseDataset):
         self.resampling_rate = resampling_rate
         self.fps = fps
         self.use_audio_dict = use_audio_dict
+        self.to_shuffle = to_shuffle
 
         if 'RGBDiff' in self.modality:
             self.new_length['RGBDiff'] += 1  # Diff needs one more image to calculate diff
@@ -119,7 +121,8 @@ class EpicKitchenDataset(BaseDataset):
             #       RGB: [12, 41, 80], Flow: [88, 55, 9], Audio: [67, 20, 33]
 
             if m != 'RGB' and self.mode == 'train':
-                np.random.shuffle(segment_indices)
+                if self.to_shuffle:
+                    np.random.shuffle(segment_indices)
             # print(m, segment_indices)
 
             img, label = self.get(m, record, segment_indices)
