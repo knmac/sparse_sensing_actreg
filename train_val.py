@@ -19,6 +19,14 @@ __DEBUG_NOBELIEF__ = False
 def train_val(model, device, criterion, train_loader, val_loader, train_params, args):
     """Training and validation routine. It will call val() automatically
     """
+    # Freeze stream weights (leaves only fusion and classification trainable)
+    if train_params['freeze']:
+        model.freeze_fn('modalities')
+
+    # Freeze batch normalisation layers except the first
+    if train_params['partialbn']:
+        model.freeze_fn('partialbn_parameters')
+
     # Get param_groups for optimizer
     param_groups = model.get_param_groups()
 
@@ -128,14 +136,6 @@ def _setup_training(model, optimizer, device, train_params, args):
                                                               device, prefix)
     else:
         raise ValueError('Unsupported train_mode: {}'.format(train_mode))
-
-    # Freeze stream weights (leaves only fusion and classification trainable)
-    if train_params['freeze']:
-        model.freeze_fn('modalities')
-
-    # Freeze batch normalisation layers except the first
-    if train_params['partialbn']:
-        model.freeze_fn('partialbn_parameters')
     return start_epoch, lr, model, best_prec1
 
 
