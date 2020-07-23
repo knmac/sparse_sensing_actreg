@@ -103,20 +103,22 @@ class AvgHallu(BaseModel):
         # Snippet-level predictions and temporal aggregation with consensus
         if isinstance(self.num_class, (list, tuple)):  # Multi-task
             # Verb
-            x_verb = self.fc_verb(x)
-            out_verb = self.softmax(x_verb)
+            out_verb = self.fc_verb(x)
+            # out_verb = self.softmax(out_verb)
             out_verb = out_verb.view((-1, self.num_segments) + out_verb.shape[1:])
             out_verb = torch.mean(out_verb, dim=1)
 
             # Noun
-            x_noun = self.fc_noun(x)
-            out_noun = self.softmax(x_noun)
+            out_noun = self.fc_noun(x)
+            # out_noun = self.softmax(out_noun)
             out_noun = out_noun.view((-1, self.num_segments) + out_noun.shape[1:])
             out_noun = torch.mean(out_noun, dim=1)
 
             output = (out_verb, out_noun)
         else:
-            x = self.fc_action(x)
-            output = self.softmax(x)
+            output = self.fc_action(x)
+            # output = self.softmax(output)
+            output = output.view((-1, self.num_segments) + output.shape[1:])
+            output = torch.mean(output, dim=1)
 
         return output
