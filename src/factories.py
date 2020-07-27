@@ -90,7 +90,7 @@ class ModelFactory(BaseFactory):
         """Generate model based on given name and variables"""
         super().generate(model_name, **kwargs)
         gen_model = self.objfn_dict[model_name](**kwargs)
-        print(gen_model)
+        # print(gen_model)
         return gen_model
 
 
