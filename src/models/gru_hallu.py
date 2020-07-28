@@ -1,4 +1,4 @@
-"""LSTM with future hallucination
+"""GRU with future hallucination
 
 Ref:
     https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html
@@ -14,7 +14,7 @@ from .base_model import BaseModel
 
 
 class GRUHallu(BaseModel):
-    """LSTM with future hallucination"""
+    """GRU with future hallucination"""
 
     def __init__(self, device, modality, num_segments, num_class, dropout,
                  feature_dim, rnn_input_size, rnn_hidden_size, rnn_num_layers,
@@ -44,7 +44,6 @@ class GRUHallu(BaseModel):
 
         # Prepare some generic layers and variables
         self.relu = nn.ReLU()
-        self.softmax = nn.Softmax(dim=1)
         if dropout > 0:
             self.dropout_layer = nn.Dropout(p=dropout)
         _std = 0.001
@@ -146,16 +145,13 @@ class GRUHallu(BaseModel):
         if isinstance(self.num_class, (list, tuple)):  # Multi-task
             # Verb
             out_verb = self.fc_verb(x)
-            # out_verb = self.softmax(out_verb)
 
             # Noun
             out_noun = self.fc_noun(x)
-            # out_noun = self.softmax(out_noun)
 
             output = (out_verb, out_noun)
         else:
             x = self.fc_action(x)
-            # output = self.softmax(x)
 
         return output
 
