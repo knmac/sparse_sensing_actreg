@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 PYTHONFAULTHANDLER=1 python main.py \
     --model_cfg         'configs/model_cfgs/pipeline_rgbspec_san19pairfreeze_gruconvhallu.yaml' \
-    --dataset_cfg       'configs/dataset_cfgs/epickitchens_short.yaml' \
+    --dataset_cfg       'configs/dataset_cfgs/epickitchens_noshuffle.yaml' \
     --train_cfg         'configs/train_cfgs/train_san_freeze_50.yaml' \
     --experiment_suffix 'san19pairfreeze_gruconvhallu' \
     --is_training       true \
