@@ -11,6 +11,7 @@ model_params:
     dropout: 0.5
     attention_layer: ['layer3', '0']
     attention_dim: [32, 14, 14]
+    hallu_loss: 'ssim'
     new_length:
         RGB: 1
         Spec: 1
