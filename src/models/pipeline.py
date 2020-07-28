@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from .base_model import BaseModel
+from .pytorch_ssim.ssim import SSIM
 from src.utils.load_cfg import ConfigLoader
 
 
@@ -15,7 +16,8 @@ class Pipeline(BaseModel):
     def __init__(self, device, model_factory, num_class, num_segments, modality,
                  new_length, dropout, attention_layer, attention_dim,
                  light_model_cfg, heavy_model_cfg,
-                 time_sampler_cfg, space_sampler_cfg, actreg_model_cfg):
+                 time_sampler_cfg, space_sampler_cfg, actreg_model_cfg,
+                 hallu_loss='mse'):
         super(Pipeline, self).__init__(device)
 
         self.num_class = num_class
@@ -25,6 +27,7 @@ class Pipeline(BaseModel):
         self.dropout = dropout
         self.attention_layer = attention_layer
         self.attention_dim = attention_dim
+        self.hallu_loss = hallu_loss
 
         # Generate models
         name, params = ConfigLoader.load_model_cfg(light_model_cfg)
@@ -61,7 +64,12 @@ class Pipeline(BaseModel):
         self.actreg_model = model_factory.generate(name, device=device, **params)
 
         # Loss for belief propagation
-        self.mse_criterion = torch.nn.MSELoss()
+        if hallu_loss == 'mse':
+            self.belief_criterion = torch.nn.MSELoss()
+        elif hallu_loss == 'ssim':
+            self.belief_criterion = SSIM(window_size=3, channel=self.attention_dim[0])
+        else:
+            raise NotImplementedError
 
     def forward(self, x):
         """Forward function for training"""
@@ -106,8 +114,16 @@ class Pipeline(BaseModel):
         # Get hallucination from current frames (for future frames)
         hallu_current = self._hallu[:, :-1]
 
-        # Compare belief using MSE loss
-        loss_belief = self.mse_criterion(hallu_current, attn_future)
+        # Compare belief
+        if self.hallu_loss == 'mse':
+            loss_belief = self.belief_criterion(hallu_current, attn_future)
+        elif self.hallu_loss == 'ssim':
+            # Reshape (B,T,C,H,W) --> (B*T,C,H,W) to compare individual images
+            # Reverse the sign to maximize SSIM loss
+            loss_belief = -self.belief_criterion(
+                hallu_current.reshape([-1] + self.attention_dim),
+                attn_future.reshape([-1] + self.attention_dim),
+            )
         return loss_belief
 
     def freeze_fn(self, freeze_mode):
