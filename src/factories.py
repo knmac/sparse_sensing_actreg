@@ -18,6 +18,8 @@ from src.models.san_multi import SANMulti
 from src.models.pipeline import Pipeline
 from src.models.gru_hallu import GRUHallu
 from src.models.avg_hallu import AvgHallu
+from src.models.gru_convhallu import GRUConvHallu
+from src.models.gru_convhallu2 import GRUConvHallu2
 
 import src.utils.logging as logging
 
@@ -84,6 +86,8 @@ class ModelFactory(BaseFactory):
             'Pipeline': Pipeline,
             'GRUHallu': GRUHallu,
             'AvgHallu': AvgHallu,
+            'GRUConvHallu': GRUConvHallu,
+            'GRUConvHallu2': GRUConvHallu2,
         }
 
     def generate(self, model_name, **kwargs):
