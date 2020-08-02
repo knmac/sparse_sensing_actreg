@@ -20,6 +20,7 @@ from src.models.gru_hallu import GRUHallu
 from src.models.avg_hallu import AvgHallu
 from src.models.gru_convhallu import GRUConvHallu
 from src.models.gru_convhallu2 import GRUConvHallu2
+from src.models.convlstm_convhallu import ConvLSTMConvHallu
 
 import src.utils.logging as logging
 
@@ -88,6 +89,7 @@ class ModelFactory(BaseFactory):
             'AvgHallu': AvgHallu,
             'GRUConvHallu': GRUConvHallu,
             'GRUConvHallu2': GRUConvHallu2,
+            'ConvLSTMConvHallu': ConvLSTMConvHallu,
         }
 
     def generate(self, model_name, **kwargs):

@@ -130,8 +130,10 @@ class SAN(nn.Module):
         x = self.relu(self.bn3(self.layer3(self.conv3(self.pool(x)))))
         x = self.relu(self.bn4(self.layer4(self.conv4(self.pool(x)))))
 
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
+        # Use the avgpool layer, if not removed yet
+        if hasattr(self, 'avgpool'):
+            x = self.avgpool(x)
+            x = x.view(x.size(0), -1)
 
         # Use the final fc layer, if not removed yet
         if hasattr(self, 'fc'):

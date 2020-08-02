@@ -21,7 +21,8 @@ class SANMulti(BaseModel):
 
     def __init__(self, device, num_segments, modality,
                  san_sa_type, san_layers, san_kernels,
-                 san_pretrained_weights=None, new_length=None, **kwargs):
+                 san_pretrained_weights=None, san_remove_avgpool=False,
+                 new_length=None, **kwargs):
         super(SANMulti, self).__init__(device)
         # self.num_class = num_class
         self.modality = modality
@@ -37,6 +38,7 @@ class SANMulti(BaseModel):
         self.san_sa_type = san_sa_type
         self.san_layers = san_layers
         self.san_kernels = san_kernels
+        self.san_remove_avgpool = san_remove_avgpool  # whether to remove the avgpool layer
 
         # Get the pretrained weight and convert to dictionary if neccessary
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -96,6 +98,8 @@ class SANMulti(BaseModel):
         for m in self.modality:
             last_layer_name = 'fc'
             delattr(self.base_model[m], last_layer_name)
+            if self.san_remove_avgpool:
+                delattr(self.base_model[m], 'avgpool')
 
         # Add base models as modules
         for m in self.modality:
@@ -197,12 +201,6 @@ class SANMulti(BaseModel):
         # replace the first convolution layer
         setattr(container, layer_name, new_conv)
 
-        # replace the avg pooling at the end, so that it matches the spectrogram dimensionality (256x256)
-        # NOTE: no need because using AdaptiveAvgPool2d
-        # pool_layer = getattr(self.base_model['Spec'], 'global_pool')
-        # new_avg_pooling = nn.AvgPool2d(8, stride=pool_layer.stride, padding=pool_layer.padding)
-        # setattr(self.base_model['Spec'], 'global_pool', new_avg_pooling)
-
         return base_model
 
     def forward(self, x):
@@ -229,8 +227,16 @@ class SANMulti(BaseModel):
             base_model = getattr(self, m.lower())
             base_out = base_model(x[m].view((-1, sample_len) + x[m].size()[-2:]))
 
-            base_out = base_out.view(base_out.size(0), -1)
+            if not self.san_remove_avgpool:
+                base_out = base_out.view(base_out.size(0), -1)
+
+            # If avgpool not available, remove the right and bottom row of spec feat
+            if self.san_remove_avgpool and m == 'Spec':
+                assert base_out.shape[-1] == 8
+                base_out = base_out[:, :, :-1, :-1]
+
             concatenated.append(base_out)
+
         out_feat = torch.cat(concatenated, dim=1)
         return out_feat
 
