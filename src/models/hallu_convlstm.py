@@ -84,6 +84,7 @@ class HalluConvLSTM(BaseModel):
             x = self.relu(self.bn_encoder(self.conv_encoder(x)))
 
             # (B*T, C, H, W) --> (B, T, C, H, W)
+            _, C, H, W = x.shape
             x = x.view((-1, T, C, H, W))
 
         # RNN
@@ -101,6 +102,7 @@ class HalluConvLSTM(BaseModel):
             x = self.relu(self.bn_decoder(self.conv_decoder(x)))
 
             # (B*T, C, H, W) --> (B, T, C, H, W)
+            _, C, H, W = x.shape
             x = x.view((-1, T, C, H, W))
 
         assert x.shape[1] == self.num_segments

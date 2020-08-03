@@ -8,4 +8,3 @@ PYTHONFAULTHANDLER=1 python main.py \
     --train_mode        'from_scratch' \
     --logdir            'logs' \
     --savedir           'saved_models'
-
