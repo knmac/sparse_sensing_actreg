@@ -77,13 +77,14 @@ class HalluConvLSTM(BaseModel):
         # Encoder
         if self.has_encoder_decoder:
             # (B, T, C, H, W) --> (B*T, C, H, W)
-            x = x.view(x.shape[1:])
+            _, T, C, H, W = x.shape
+            x = x.view((-1, C, H, W))
 
             # Encode
             x = self.relu(self.bn_encoder(self.conv_encoder(x)))
 
             # (B*T, C, H, W) --> (B, T, C, H, W)
-            x = x.view((-1, self.num_segments) + x.shape[1:])
+            x = x.view((-1, T, C, H, W))
 
         # RNN
         x, _ = self.rnn(x, hidden)
@@ -93,13 +94,14 @@ class HalluConvLSTM(BaseModel):
         # Decoder
         if self.has_encoder_decoder:
             # (B, T, C, H, W) --> (B*T, C, H, W)
-            x = x.view(x.shape[1:])
+            _, T, C, H, W = x.shape
+            x = x.view((-1, C, H, W))
 
             # Decode
             x = self.relu(self.bn_decoder(self.conv_decoder(x)))
 
             # (B*T, C, H, W) --> (B, T, C, H, W)
-            x = x.view((-1, self.num_segments) + x.shape[1:])
+            x = x.view((-1, T, C, H, W))
 
         assert x.shape[1] == self.num_segments
         assert x.shape[2:] == torch.Size(self.attention_dim)
