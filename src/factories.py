@@ -21,6 +21,9 @@ from src.models.avg_hallu import AvgHallu
 from src.models.gru_convhallu import GRUConvHallu
 from src.models.gru_convhallu2 import GRUConvHallu2
 from src.models.convlstm_convhallu import ConvLSTMConvHallu
+from src.models.pipeline2 import Pipeline2
+from src.models.actreg_gru import ActregGRU
+from src.models.hallu_convlstm import HalluConvLSTM
 
 import src.utils.logging as logging
 
@@ -90,6 +93,10 @@ class ModelFactory(BaseFactory):
             'GRUConvHallu': GRUConvHallu,
             'GRUConvHallu2': GRUConvHallu2,
             'ConvLSTMConvHallu': ConvLSTMConvHallu,
+            # ---
+            'Pipeline2': Pipeline2,
+            'ActregGRU': ActregGRU,
+            'HalluConvLSTM': HalluConvLSTM,
         }
 
     def generate(self, model_name, **kwargs):
