@@ -3,4 +3,4 @@ model_params:
     rnn_input_dim: 32
     rnn_hidden_dim: 32
     rnn_num_layers: 1
-    has_encoder_decoder: False
+    has_encoder_decoder: True
