@@ -1,4 +1,4 @@
-# Spatio-Temperal Sparse Sensing for Ego-Action Recognition
+# Spatiotemperal Sparse Sensing for Ego-Action Recognition
 
 ## Data preprocessing
 
