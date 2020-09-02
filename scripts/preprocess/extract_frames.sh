@@ -1,39 +1,40 @@
 #!/usr/bin/env bash
-# Batch extract frames for all videos in the datasets. Need to execute
-# `run_ffmpeg_docker.sh` first. Modify IN_DIR and OUT_DIR if needed.
+# Batch extract frames for all videos in the datasets
+# The extracted frames are stored as
+#   $OUT_DIR/[video_id]/0/%4d.jpg
+# For example
+#   EPIC_KITCHENS_2018/frames_full/P01_06/0/0001.jpg
+IN_DIR='./data/EPIC_KITCHENS_2018/videos'
+OUT_DIR='./data/EPIC_KITCHENS_2018/frames_full'
+mkdir -p $OUT_DIR
 
-IN_DIR='/data/EPIC_KITCHENS_2018/videos'
-OUT_DIR='/data/EPIC_KITCHENS_2018/frames_untar/rgb'
-mkdir -p $OUT_DIR 
+# Extract function
+extract () {
+    phase=$1
 
-# Extract train videos
-for vid in $IN_DIR/train/*/*; do
-    output="${vid//$IN_DIR/$OUT_DIR}"
-    output="${output//\.MP4/}"
-    mkdir -p $output
+    for pth1 in $IN_DIR/$phase/*; do
+        uid="${pth1##*/}"
+        for pth2 in $IN_DIR/$phase/$uid/*; do
+            vid="${pth2##*/}"
+            output=$OUT_DIR/${vid//\.MP4/}/0
 
-    ffmpeg \
-        -hwaccel cuvid \
-        -c:v "h264_cuvid" \
-        -i "$vid" \
-        -vf 'scale_npp=-2:256,hwdownload,format=nv12' \
-        -q:v 4 \
-        -r 60 \
-        "$output/frame_%010d.jpg"
-done
+            mkdir -p $output
+            ffmpeg \
+                -i "$pth2" \
+                -vf 'scale=-2:256' \
+                -q:v 4 \
+                -r 60 \
+                "$output/%4d.jpg"
+        done
+    done
+}
 
-# Extract test videos
-for vid in $IN_DIR/test/*/*; do
-    output="${vid//$IN_DIR/$OUT_DIR}"
-    output="${output//\.MP4/}"
-    mkdir -p $output
+echo "========================================================================"
+echo "Extracting train videos"
+echo "========================================================================"
+extract "train"
 
-    ffmpeg \
-        -hwaccel cuvid \
-        -c:v "h264_cuvid" \
-        -i "$vid" \
-        -vf 'scale_npp=-2:256,hwdownload,format=nv12' \
-        -q:v 4 \
-        -r 60 \
-        "$output/frame_%010d.jpg"
-done
+echo "========================================================================"
+echo "Extracting test videos"
+echo "========================================================================"
+extract "test"
