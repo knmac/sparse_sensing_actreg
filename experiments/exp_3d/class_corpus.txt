@@ -1,0 +1,33 @@
+Group1: hand always appears -> important segment
+- hand
+
+Group 2: immovable objects -> good cues for localization
+- floor
+- wall
+- door
+- window
+- countertop
+- shelf
+- oven
+- sink
+- dishwasher
+
+Group 3: unlikely moving objects -> ok cues for localization
+- chair, couch
+- table
+- trash can
+- refrigerator
+- washing machine
+- microwave, toaster
+- coffee machine
+
+Group 4: frequently moving objects but usually appear in kitchens
+- food
+- chopping board
+- tray
+- pan, pot
+- box, packet
+- bottle
+- kettle
+- crockery (plate, bowl, cup, glass, ...)
+- flatware (knife, fork, spoon, ...)
