@@ -3,9 +3,9 @@
 # The extracted frames are stored as
 #   $OUT_DIR/[video_id]/0/%4d.jpg
 # For example
-#   EPIC_KITCHENS_2018/frames_full/P01_06/0/0001.jpg
+#   EPIC_KITCHENS_2018/frames_256/P01_06/0/0001.jpg
 IN_DIR='./data/EPIC_KITCHENS_2018/videos'
-OUT_DIR='./data/EPIC_KITCHENS_2018/frames_full'
+OUT_DIR='./data/EPIC_KITCHENS_2018/frames_256'
 mkdir -p $OUT_DIR
 
 # Extract function
