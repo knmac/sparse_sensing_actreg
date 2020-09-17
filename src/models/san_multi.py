@@ -94,7 +94,7 @@ class SANMulti(BaseModel):
                     logger.info('Not loading pretrained model for modality {}!'.format(m))
         del self._load_weight_later
 
-        # Remove the last fc layer
+        # Remove the last fc layer and last avgpool layer
         for m in self.modality:
             last_layer_name = 'fc'
             delattr(self.base_model[m], last_layer_name)
