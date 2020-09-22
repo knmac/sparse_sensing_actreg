@@ -22,7 +22,8 @@ class SANMulti(BaseModel):
     def __init__(self, device, num_segments, modality,
                  san_sa_type, san_layers, san_kernels,
                  san_pretrained_weights=None, san_remove_avgpool=False,
-                 new_length=None, **kwargs):
+                 new_length=None, new_input_size=None, new_scale_size=None,
+                 **kwargs):
         super(SANMulti, self).__init__(device)
         # self.num_class = num_class
         self.modality = modality
@@ -33,6 +34,8 @@ class SANMulti(BaseModel):
                 self.new_length[m] = 1 if (m == "RGB" or m == "Spec") else 5
         else:
             self.new_length = new_length
+        self.new_input_size = new_input_size
+        self.new_scale_size = new_scale_size
 
         # parameters of SAN backbone
         self.san_sa_type = san_sa_type
@@ -122,7 +125,10 @@ class SANMulti(BaseModel):
                 kernels=self.san_kernels,
                 num_classes=1000,  # Final fc will be removed later
             )
-            self.input_size[m] = 224
+            if self.new_input_size is None:
+                self.input_size[m] = 224
+            else:
+                self.input_size[m] = self.new_input_size
             self.input_std[m] = [1]
 
             if m == 'Flow':
@@ -290,7 +296,10 @@ class SANMulti(BaseModel):
 
     @property
     def scale_size(self):
-        scale_size = {k: v * 256 // 224 for k, v in self.input_size.items()}
+        if self.new_scale_size is None:
+            scale_size = {k: v * 256 // 224 for k, v in self.input_size.items()}
+        else:
+            scale_size = {k: self.new_scale_size for k in self.input_size.keys()}
         return scale_size
 
     def get_param_groups(self):
