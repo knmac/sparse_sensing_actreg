@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-python main.py \
+PYTHONFAULTHANDLER=1 python main.py \
     --model_cfg   'configs/model_cfgs/pipeline_simple_san19pair_rgbspec_112.yaml' \
     --dataset_cfg 'configs/dataset_cfgs/epickitchens.yaml' \
     --train_cfg   'configs/train_cfgs/train_tbn.yaml' \
