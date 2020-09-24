@@ -196,7 +196,13 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         # Compute metrics
         batch_size = sample[model.module.modality[0]].size(0)
         if dataset != 'epic_kitchens':
-            target = target.to(device)
+            # Repeat the target for all frame if necessary
+            if output.ndim == 3:
+                n_frames = output.shape[1]
+                target = torch.unsqueeze(target, dim=1).repeat(1, n_frames).view(-1).to(device)
+                output = output.view(-1, output.shape[-1])
+
+            # target = target.to(device)
             # if has_belief:
             if has_belief and (not __DEBUG_NOBELIEF__):
                 loss = 0.5*(criterion(output, target) + loss_belief)
@@ -205,7 +211,15 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                 loss = criterion(output, target)
             prec1, prec5 = accuracy(output, target, topk=(1, 5))
         else:
-            target = {k: v.to(device) for k, v in target.items()}
+            # Repeat the target for all frame if necessary
+            if output[0].ndim == 3:
+                n_frames = output[0].shape[1]
+                for k in target:
+                    target[k] = torch.unsqueeze(target[k], dim=1).repeat(1, n_frames).view(-1).to(device)
+                output = (output[0].view(-1, output[0].shape[-1]),
+                          output[1].view(-1, output[1].shape[-1]))
+
+            # target = {k: v.to(device) for k, v in target.items()}
             loss_verb = criterion(output[0], target['verb'])
             loss_noun = criterion(output[1], target['noun'])
             # if has_belief:
@@ -332,6 +346,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             # Compute metrics
             batch_size = sample[model.module.modality[0]].size(0)
             if dataset != 'epic_kitchens':
+                if output.ndim == 3:
+                    output = output[:, -1, :]
                 target = target.to(device)
                 # if has_belief:
                 if has_belief and (not __DEBUG_NOBELIEF__):
@@ -341,6 +357,9 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                     loss = criterion(output, target)
                 prec1, prec5 = accuracy(output, target, topk=(1, 5))
             else:
+                # Pick the last frame to validate
+                if output[0].ndim == 3:
+                    output = (output[0][:, -1, :], output[1][:, -1, :])
                 target = {k: v.to(device) for k, v in target.items()}
                 loss_verb = criterion(output[0], target['verb'])
                 loss_noun = criterion(output[1], target['noun'])

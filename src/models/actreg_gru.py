@@ -91,8 +91,9 @@ class ActregGRU(BaseModel):
         x = self.relu(x)
 
         # Classification using the last output of the time sequence
-        last_x = x[:, -1, :]
-        output = self.classify(last_x)
+        # last_x = x[:, -1, :]
+        # output = self.classify(last_x)
+        output = self.classify(x)
         return output
 
     def classify(self, x):
