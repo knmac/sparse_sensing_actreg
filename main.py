@@ -48,6 +48,11 @@ def parse_args():
     parser.add_argument('--log_fname', type=str, default=None,
                         help='Path to the file to store running log '
                              '(beside showing to stdout)')
+    parser.add_argument('--best_metrics', type=str, default='val_acc',
+                        help='Metric to select the best checkpoint')
+    parser.add_argument('--best_fn', type=str, default='max',
+                        choices=['min', 'max'],
+                        help='Function to compare the best metric')
 
     parser.add_argument('--gpus', nargs='+', type=int, default=None)
     parser.add_argument('--experiment_suffix', type=str, default='',
@@ -103,7 +108,7 @@ def gen_experiment_name(dataset_name, model_name, model_params, train_params, ar
         model_name,
         ''.join(model_params['modality']),
         'segs' + str(model_params['num_segments']),
-        'dr' + str(model_params['dropout']),
+        # 'dr' + str(model_params['dropout']),
         'ep' + str(train_params['n_epochs']),
         'lr' + str(train_params['optim_params']['lr']),
         'lr_st' + '_'.join([str(x) for x in train_params['lr_steps']]),

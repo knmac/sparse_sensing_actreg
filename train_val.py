@@ -45,7 +45,7 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
     sum_writer = SummaryWriter(log_dir=args.logdir)
 
     # Setup training starting point
-    start_epoch, lr, model, best_prec1 = _setup_training(
+    start_epoch, lr, model, best_val = _setup_training(
         model, optimizer, device, train_params, args)
 
     # Train with multiple GPUs
@@ -71,11 +71,20 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
             val_metrics = validate(model, device, criterion, val_loader,
                                    sum_writer, run_iter+len(train_loader))
 
-            # Remember best prec@1 and save checkpoint
-            prec1 = val_metrics['val_acc']
-            is_best = prec1 > best_prec1
-            best_prec1 = max(prec1, best_prec1)
-            MiscUtils.save_progress(model, optimizer, args.savedir, best_prec1,
+            # Remember best value of the metrics and save checkpoint
+            current_val = val_metrics[args.best_metrics]
+            is_best = False
+            if args.best_fn == 'max':
+                if current_val > best_val:
+                    best_val = current_val
+                    is_best = True
+            elif args.best_fn == 'min':
+                if current_val < best_val:
+                    best_val = current_val
+                    is_best = True
+            else:
+                NotImplementedError
+            MiscUtils.save_progress(model, optimizer, args.savedir, best_val,
                                     epoch, is_best)
 
     # Done training
@@ -95,14 +104,14 @@ def _setup_training(model, optimizer, device, train_params, args):
         start_epoch: epoch to start the training at
         lr: learning rate to start at
         model: loaded model by `from_pretrained` or `resume`
-        best_prec1: current best prec@1
+        best_val: current best value of the selected metrics
     """
     train_mode = args.train_mode
     savedir = args.savedir
 
     # By default, start_epoch = 0, lr from train parameters
     start_epoch = 0
-    best_prec1 = 0
+    best_val = 0
     lr = train_params['optim_params']['lr']
 
     # Setup training starting point
@@ -132,11 +141,11 @@ def _setup_training(model, optimizer, device, train_params, args):
     elif train_mode == 'resume':
         logger.info('Resume training from a checkpoint')
         prefix = MiscUtils.get_lastest_checkpoint(savedir)
-        lr, start_epoch, best_prec1 = MiscUtils.load_progress(model, optimizer,
-                                                              device, prefix)
+        lr, start_epoch, best_val = MiscUtils.load_progress(model, optimizer,
+                                                            device, prefix)
     else:
         raise ValueError('Unsupported train_mode: {}'.format(train_mode))
-    return start_epoch, lr, model, best_prec1
+    return start_epoch, lr, model, best_val
 
 
 def _train_one_epoch(model, device, criterion, train_loader, optimizer,
@@ -201,8 +210,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                 n_frames = output.shape[1]
                 target = torch.unsqueeze(target, dim=1).repeat(1, n_frames).view(-1).to(device)
                 output = output.view(-1, output.shape[-1])
+            else:
+                target = target.to(device)
 
-            # target = target.to(device)
             # if has_belief:
             if has_belief and (not __DEBUG_NOBELIEF__):
                 loss = 0.5*(criterion(output, target) + loss_belief)
@@ -218,8 +228,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                     target[k] = torch.unsqueeze(target[k], dim=1).repeat(1, n_frames).view(-1).to(device)
                 output = (output[0].view(-1, output[0].shape[-1]),
                           output[1].view(-1, output[1].shape[-1]))
+            else:
+                target = {k: v.to(device) for k, v in target.items()}
 
-            # target = {k: v.to(device) for k, v in target.items()}
             loss_verb = criterion(output[0], target['verb'])
             loss_noun = criterion(output[1], target['noun'])
             # if has_belief:
