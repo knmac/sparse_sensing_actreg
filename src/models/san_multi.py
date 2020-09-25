@@ -19,15 +19,14 @@ logger = logging.get_logger(__name__)
 
 class SANMulti(BaseModel):
 
-    def __init__(self, device, num_segments, modality,
-                 san_sa_type, san_layers, san_kernels,
+    def __init__(self, device, modality, san_sa_type, san_layers, san_kernels,
                  san_pretrained_weights=None, san_remove_avgpool=False,
                  new_length=None, new_input_size=None, new_scale_size=None,
                  **kwargs):
         super(SANMulti, self).__init__(device)
         # self.num_class = num_class
         self.modality = modality
-        self.num_segments = num_segments
+        # self.num_segments = num_segments
         self.new_length = OrderedDict()
         if new_length is None:
             for m in self.modality:
