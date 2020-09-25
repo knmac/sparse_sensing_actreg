@@ -68,11 +68,10 @@ class HalluConvLSTM(BaseModel):
         """Forward function
 
         Args:
-            x: input tensor of shap (B*T, D)
+            x: input tensor of shap (B, T, C, H, W)
 
         Return:
-            output: classification results
-            hallu: hallucination results
+            output: hallucination results
         """
         # Encoder
         if self.has_encoder_decoder:
