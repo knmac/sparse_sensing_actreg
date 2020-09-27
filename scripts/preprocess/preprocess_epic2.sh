@@ -7,7 +7,7 @@
 echo "Run symlinks..."
 
 # Get the absolute path to frame dir for symlinks
-abs_data_path=$(realpath -s "data/EPIC_KITCHENS_2018/frames_256")
+abs_data_path=$(realpath "data/EPIC_KITCHENS_2018/frames_256")
 
 # Create symlinks
 python tools/preprocessing_epic/symlinks2.py \
