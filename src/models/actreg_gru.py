@@ -113,7 +113,7 @@ class ActregGRU(BaseModel):
 
             output = (out_verb, out_noun)
         else:
-            x = self.fc_action(x)
+            output = self.fc_action(x)
 
         return output
 
