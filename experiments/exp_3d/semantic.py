@@ -145,7 +145,7 @@ def vote(semantic_candidates, meaning_candidates, score_candidates, scheme):
 
 
 def main():
-    path = '/home/knmac/Documents/Dropbox/SparseSensing/3d_projection/P01_08'
+    path = '/home/knmac/Dropbox/SparseSensing/3d_projection/P01_08'
     frame_path = '/home/knmac/projects/tmp_extract/frames_full/P01_08/0'
     panoptic_path = './cache/panoptic_dict_P01_08.data'
     semantic_path = './cache/semantic.data'

@@ -57,42 +57,11 @@ class CameraData():
 
 class Corpus():
     def __init__(self):
-        self.nCameras, self.n3dPoints = None, None
-        # self.IDCumView = None
-        # self.vTrueFrameId = None
-        # self.filenames = None
-        # self.camera = CameraData()
-
-        # self.GlobalAnchor3DId = None
+        self.nCameras = None
+        self.n3dPoints = None
         self.xyz = None
         self.rgb = None
-
-        # Need for BA
-        # self.viewIdAll3D = None  # 3D -> visible views index
-        # self.pointIdAll3D = None  # 3D -> 2D index in those visible views
-        # self.uvAll3D = None  # 3D -> uv of that point in those visible views
-        # self.scaleAll3D = None  # 3D -> scale of that point in those visible views
-        # self.DescAll3D = None  # desc for all 3D
-
-        # Needed for matching and triangulation
-        # self.SiftIdAllViews = None  # all views valid sift feature org id
-        # self.uvAllViews = None  # all views valid 2D points
-        # self.scaleAllViews = None  # all views valid 2D points
-        # self.twoDIdAllViews = None  # 2D point in visible view -> 2D index
         self.threeDIdAllViews = None  # 2D point in visible view -> 3D index
-        # self.DescAllViews = None  # all views valid desc
-
-        # self.n2DPointsPerView = None
-        # self.cn3DPointsPerView = None
-        # self.uvAllViews2 = None
-        # self.scaleAllViews2 = None
-        # self.threeDIdAllViews2 = None
-        # self.InlierAllViews2 = None  # 2D point in visible view -> inlier (1) or not (0)
-
-        # Pairwise matching info
-        # self.nMatchesCidIPidICidJPidJ = None
-        # self.matchedCidICidJ = None
-        # self.matchedCidIPidICidJPidJ = None
 
 
 def invert_intrinsic(K):
@@ -206,34 +175,6 @@ def lens_distortion_points(img_point, K, distortion):
     Return:
         Distorted image point
     """
-    # fx, fy, skew, u0, v0 = K[0, 0], K[1, 1], K[0, 1], K[2, 0], K[2, 1]
-
-    # ycn = (img_point[1] - v0) / fy
-    # xcn = (img_point[0] - u0 - skew * ycn) / fx
-
-    # r2 = xcn * xcn + ycn * ycn
-    # r4 = r2 * r2
-    # r6 = r2 * r4
-    # X2 = xcn * xcn
-    # Y2 = ycn * ycn
-    # XY = xcn * ycn
-
-    # a0, a1, a2 = distortion[0], distortion[1], distortion[2]
-    # p0, p1 = distortion[3], distortion[4]
-    # s0, s1 = distortion[5], distortion[6]
-
-    # radial = 1 + a0 * r2 + a1 * r4 + a2 * r6
-    # tangential_x = 2.0*p1*XY + p0 * (r2 + 2.0*X2)
-    # tangential_y = p1 * (r2 + 2.0*Y2) + 2.0*p0*XY
-    # prism_x = s0 * r2
-    # prism_y = s1 * r2
-
-    # xcn_ = radial * xcn + tangential_x + prism_x
-    # ycn_ = radial * ycn + tangential_y + prism_y
-
-    # img_point[0] = fx * xcn_ + skew * ycn_ + u0
-    # img_point[1] = fy * ycn_ + v0
-
     Kf = K.flatten()
     img_point_x, img_point_y = img_point
 
@@ -485,6 +426,12 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid):
         CorpusInfo: corpus of 3D points
         vCorpus_cid_Lcid_Lfid: determine which video frame is used to create
             the corpus
+
+    Returns:
+        projected: (N, 2) projected 2D locations in image plane of visible points
+        depths: (N,) depth in camera plane of visible points
+        colors: (N, 3) RGB colors of the visible points
+        points3d: (N, 3) original 3D locations if world frame of visible points
     """
     assert vInfo.VideoInfo[testFid].valid, \
         print('The selected frame is not localized to the Corpus')
@@ -502,8 +449,10 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid):
 
     # Project those corpus points to the image
     camI = vInfo.VideoInfo[testFid]
-    projected = np.zeros([len(VisbleCorpus3DPointId), 3], dtype=float)
+    projected = np.zeros([len(VisbleCorpus3DPointId), 2], dtype=float)
+    depths = np.zeros([len(VisbleCorpus3DPointId)], dtype=float)
     colors = np.zeros([len(VisbleCorpus3DPointId), 3], dtype=float)
+    points3d = np.zeros([len(VisbleCorpus3DPointId), 3], dtype=float)
     for ii in range(len(VisbleCorpus3DPointId)):
         id3D = VisbleCorpus3DPointId[ii]
         p3d = CorpusInfo.xyz[id3D]
@@ -516,8 +465,11 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid):
         cam2point = p3d - camI.camCenter
         depth = np.dot(cam2point, camI.principleRayDir)
 
-        projected[ii] = pt2D[0], pt2D[1], depth
+        # Collect results
+        projected[ii] = pt2D[0], pt2D[1]
+        depths[ii] = depth
         colors[ii] = rgb.astype(np.float) / 255
+        points3d[ii] = p3d
 
     # with open('{:04d}.txt'.format(testFid), 'w') as fout:
     #     for ii in range(len(VisbleCorpus3DPointId)):
@@ -525,9 +477,9 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid):
     #             VisbleCorpus3DPointId[ii],
     #             projected[ii, 0],
     #             projected[ii, 1],
-    #             projected[ii, 2],
+    #             depths[ii],
     #         ))
-    return projected, colors
+    return projected, depths, colors, points3d
 
 
 def match_point_to_frame(CorpusInfo, vCorpus_cid_Lcid_Lfid):
@@ -559,7 +511,7 @@ def match_point_to_frame(CorpusInfo, vCorpus_cid_Lcid_Lfid):
 
 
 def main():
-    path = '/home/knmac/Documents/Dropbox/SparseSensing/3d_projection/P01_08'
+    path = '/home/knmac/Dropbox/SparseSensing/3d_projection/P01_08'
     frame_path = '/home/knmac/projects/tmp_extract/frames_full/P01_08/0'
 
     # Read corpus
@@ -572,13 +524,14 @@ def main():
     vInfo = read_intrinsic_extrinsic(path, stopF=5931)
     print('Reading camera parameters: {:.03f}s'.format(time.time() - st))
 
-    # projected, colors = project_frame(20, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid)
+    # projected, depths, colors, _ = project_frame(20, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid)
 
     # Project
     fig, axes = plt.subplots(2, 1, figsize=(6, 8))
     for frame_id in range(30):
         # Project 3D points
-        projected, colors = project_frame(frame_id, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid)
+        projected, depths, colors, _ = project_frame(frame_id, vInfo, CorpusInfo,
+                                                     vCorpus_cid_Lcid_Lfid)
         if projected is None:
             print(frame_id)
             continue
@@ -611,7 +564,7 @@ def main():
     # ax.plot([0,0], [0,500], [0,0], color='green')
     # ax.plot([0,0], [0,0], [0,500], color='blue')
     # for testFid in range(5):
-    #     projected, colors = project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid)
+    #     projected, depths, colors, _ = project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid)
     #     ax.scatter(xs=projected[:,0], ys=projected[:,1], zs=1000*projected[:,2], s=3, c=colors)
 
     #     plt.draw()
