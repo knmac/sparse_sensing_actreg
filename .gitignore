@@ -10,6 +10,7 @@ tags
 .ctagsignore
 pretrained/*.tar
 pretrained/san_imagenet/
+cache/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

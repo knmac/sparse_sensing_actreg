@@ -1,3 +1,5 @@
+"""Test detectron2 panoptic segmentation on a frame of EPIC-KITCHENS
+"""
 import numpy as np
 import cv2
 from detectron2 import model_zoo
@@ -20,7 +22,7 @@ def parse_segment_id(segment_id, segments_info, thing_2_contiguous, stuff_2_cont
 
 
 def main():
-    im = cv2.imread('../tmp_extract/frames_full/P01_08/0/0020.jpg')
+    im = cv2.imread('/home/knmac/projects/tmp_extract/frames_full/P01_08/0/0020.jpg')
 
     # Inference with a panoptic segmentation model
     cfg = get_cfg()
@@ -47,7 +49,7 @@ def main():
         semantic[panoptic_seg == i] = lbl
         print(i, '-->', lbl, ':', meaning)
 
-    fig, axes = plt.subplots(2, 9, figsize=(10, 10))
+    fig, axes = plt.subplots(2, 9, figsize=(20, 5))
     for i in np.unique(panoptic_seg):
         lbl, meaning = parse_segment_id(i, segments_info, thing_2_contiguous, stuff_2_contiguous,
                                         metadata.thing_classes, metadata.stuff_classes)
@@ -59,7 +61,7 @@ def main():
         axes[1, i].imshow(bar)
         axes[1, i].set_xlabel(meaning)
 
-    fig, ax = plt.subplots(1, 1)
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5))
     ax.imshow(out.get_image())
     plt.show()
 

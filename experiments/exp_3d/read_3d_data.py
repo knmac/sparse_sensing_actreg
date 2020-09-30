@@ -560,7 +560,7 @@ def match_point_to_frame(CorpusInfo, vCorpus_cid_Lcid_Lfid):
 
 def main():
     path = '/home/knmac/Documents/Dropbox/SparseSensing/3d_projection/P01_08'
-    frame_path = '../tmp_extract/frames_full/P01_08/0'
+    frame_path = '/home/knmac/projects/tmp_extract/frames_full/P01_08/0'
 
     # Read corpus
     st = time.time()
