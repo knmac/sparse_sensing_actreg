@@ -412,7 +412,8 @@ def read_intrinsic_extrinsic(path, view_id=0, startF=0, stopF=999999):
     return vInfo
 
 
-def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid):
+def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid,
+                  unique_points=False):
     """Project a frame from 3D to 2D
 
     For every frame, get the projection of the visble corpus points.
@@ -426,6 +427,7 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid):
         CorpusInfo: corpus of 3D points
         vCorpus_cid_Lcid_Lfid: determine which video frame is used to create
             the corpus
+        unique_points: whether to get the unique point set (with sorted point id)
 
     Returns:
         projected: (N, 2) projected 2D locations in image plane of visible points
@@ -440,12 +442,15 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid):
     # because the frame we need may not exist in the corpus
     ii = np.searchsorted(vCorpus_cid_Lcid_Lfid[:, 2], testFid, side='right')
     if ii >= vCorpus_cid_Lcid_Lfid.shape[0]:
-        return None, None
+        return None, None, None, None
     assert vCorpus_cid_Lcid_Lfid[ii-1, 2] <= testFid <= vCorpus_cid_Lcid_Lfid[ii, 2]
     nn2 = [vCorpus_cid_Lcid_Lfid[ii-1, 1], vCorpus_cid_Lcid_Lfid[ii, 1]]
     VisbleCorpus3DPointId = CorpusInfo.threeDIdAllViews[nn2[0]] + \
         CorpusInfo.threeDIdAllViews[nn2[1]]
-    # VisbleCorpus3DPointId = np.unique(VisbleCorpus3DPointId)
+
+    # Get unique points to reduce size
+    if unique_points:
+        VisbleCorpus3DPointId = np.unique(VisbleCorpus3DPointId)
 
     # Project those corpus points to the image
     camI = vInfo.VideoInfo[testFid]
