@@ -5,6 +5,7 @@ import os
 import cv2
 import numpy as np
 import skimage.io as sio
+from skimage.transform import resize
 import matplotlib.pyplot as plt
 
 from read_3d_data import (read_corpus,
@@ -109,7 +110,7 @@ def main():
     corpus_info, vcorpus_cid_lcid_lfid = read_corpus(data_pth)
 
     # Read camera parameters
-    vinfo = read_intrinsic_extrinsic(data_pth, stopF=5931)
+    vinfo = read_intrinsic_extrinsic(data_pth)
 
     # Read frames
     frame1 = sio.imread(frame1_pth)
@@ -125,15 +126,36 @@ def main():
     warp_mat, inliners = cv2.estimateAffine2D(matched_1, matched_2)
     warp_dst = cv2.warpAffine(frame1, warp_mat, (frame1.shape[1], frame1.shape[0]))
 
-    # Visualize ---------------------------------------------------------------
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    axes[0].imshow(frame1)
-    axes[1].imshow(frame2)
-    axes[2].imshow(warp_dst)
+    # Distort the points for resized images -----------------------------------
+    new_h, new_w = 224, 224
+    frame1_resize = resize(frame1, (new_h, new_w), preserve_range=True,
+                           anti_aliasing=True).astype(np.uint8)
+    frame2_resize = resize(frame2, (new_h, new_w), preserve_range=True,
+                           anti_aliasing=True).astype(np.uint8)
+    scale_h = frame1.shape[0] / new_h
+    scale_w = frame1.shape[1] / new_w
+    matched_1_resize = matched_1 / [scale_w, scale_h]
+    matched_2_resize = matched_2 / [scale_w, scale_h]
+    warp_mat_resize, _ = cv2.estimateAffine2D(matched_1_resize, matched_2_resize)
+    warp_dst_resize = cv2.warpAffine(frame1_resize, warp_mat_resize,
+                                     (frame1_resize.shape[1], frame1_resize.shape[0]))
 
-    axes[0].set_xlabel('Frame1')
-    axes[1].set_xlabel('Frame2')
-    axes[2].set_xlabel('Warped frame1 (to match frame2)')
+    # Visualize ---------------------------------------------------------------
+    fig, axes = plt.subplots(2, 3, figsize=(18, 8))
+    axes[0, 0].imshow(frame1)
+    axes[0, 1].imshow(frame2)
+    axes[0, 2].imshow(warp_dst)
+
+    axes[1, 0].imshow(frame1_resize)
+    axes[1, 1].imshow(frame2_resize)
+    axes[1, 2].imshow(warp_dst_resize)
+
+    axes[0, 0].set_ylabel('Original')
+    axes[1, 0].set_ylabel('Resized projected points')
+
+    axes[1, 0].set_xlabel('Frame1')
+    axes[1, 1].set_xlabel('Frame2')
+    axes[1, 2].set_xlabel('Warped frame1 (to match frame2)')
     plt.show()
     return 0
 
