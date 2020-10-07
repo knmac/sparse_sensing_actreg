@@ -2,24 +2,18 @@
 """
 import os
 import sys
-from time import time, sleep
+from time import time
 from glob import glob
 import pickle
 import argparse
-import threading
-import logging
-import queue
+from threading import Thread
+from queue import Queue
 
 from natsort import natsorted
 
 from read_3d_data import (read_corpus,
                           read_intrinsic_extrinsic,
                           project_frame)
-
-logging.basicConfig(level=logging.DEBUG,
-                    format='(%(threadName)-9s) %(message)s',)
-BUF_SIZE = 10
-q = queue.Queue(BUF_SIZE)
 
 
 def parse_args():
@@ -39,6 +33,10 @@ def parse_args():
         '--report_dir', type=str,
         default='/home/knmac/datasets/epic3D/reports',
         help='Directory to store reports (as pickle format)',
+    )
+    parser.add_argument(
+        '--num_workers', type=int, default=8,
+        help='Number of workers to process data',
     )
 
     args = parser.parse_args()
@@ -113,55 +111,24 @@ def project_vid(vid_path, result_path, report_path):
     return results, report
 
 
-class ProducerThread(threading.Thread):
-    def __init__(self, group=None, target=None, name=None,
-                 args=(), kwargs=None, verbose=None):
-        super(ProducerThread, self).__init__()
-        self.target = target
-        self.name = name
-
-        self.vid_list = [x for x in kwargs['vid_list']]
+class MyWorker(Thread):
+    def __init__(self, queue, result_dir, report_dir):
+        Thread.__init__(self)
+        self.queue = queue
+        self.result_dir = result_dir
+        self.report_dir = report_dir
 
     def run(self):
-        while self.vid_list != []:
-            if not q.full():
-                vid_path = self.vid_list.pop(0)
-                q.put(vid_path)
-                logging.debug('Putting ' + str(vid_path)
-                              + ' : ' + str(q.qsize()) + ' items in queue')
-                sleep(1)
-        logging.debug('Ending')
-
-
-class ConsumerThread(threading.Thread):
-    def __init__(self, group=None, target=None, name=None,
-                 args=(), kwargs=None, verbose=None):
-        super(ConsumerThread, self).__init__()
-        self.target = target
-        self.name = name
-
-        self.vid_list = [x for x in kwargs['vid_list']]
-        self.report_dir = kwargs['report_dir']
-        self.result_dir = kwargs['result_dir']
-
-    def run(self):
-        # while True:
-        while self.vid_list != []:
-            if not q.empty():
-                # Get item from queue
-                vid_path = q.get()
-                self.vid_list.remove(vid_path)
-                logging.debug('Getting ' + str(vid_path)
-                              + ' : ' + str(q.qsize()) + ' items in queue')
-
-                # Process item
+        while True:
+            vid_path = self.queue.get()
+            try:
                 vid_id = os.path.basename(vid_path)
                 result_path = os.path.join(self.result_dir, vid_id+'.pkl')
                 report_path = os.path.join(self.report_dir, vid_id+'.pkl')
+                print('Processing {}...'.format(vid_id))
                 project_vid(vid_path, result_path, report_path)
-
-                sleep(1)
-        logging.debug('Ending')
+            finally:
+                self.queue.task_done()
 
 
 def main(args):
@@ -170,16 +137,14 @@ def main(args):
                 if os.path.isdir(item)]
     vid_list = natsorted(vid_list)
 
-    # Create producer and consumer for multi threading
-    producer = ProducerThread(name='producer', kwargs={'vid_list': vid_list})
-    consumer = ConsumerThread(name='consumer', kwargs={'vid_list': vid_list,
-                                                       'result_dir': args.result_dir,
-                                                       'report_dir': args.report_dir})
-
-    producer.start()
-    sleep(2)
-    consumer.start()
-    sleep(2)
+    queue = Queue()
+    for x in range(8):
+        worker = MyWorker(queue, args.result_dir, args.report_dir)
+        worker.daemon = True
+        worker.start()
+    for vid_path in vid_list:
+        queue.put(vid_path)
+    queue.join()
 
     return 0
 
