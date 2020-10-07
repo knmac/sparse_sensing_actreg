@@ -476,10 +476,10 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid,
 
     # Project those corpus points to the image
     camI = vInfo.VideoInfo[testFid]
-    projected = np.zeros([len(VisbleCorpus3DPointId), 2], dtype=float)
-    depths = np.zeros([len(VisbleCorpus3DPointId)], dtype=float)
-    colors = np.zeros([len(VisbleCorpus3DPointId), 3], dtype=float)
-    points3d = np.zeros([len(VisbleCorpus3DPointId), 3], dtype=float)
+    projected = np.zeros([len(VisbleCorpus3DPointId), 2], dtype=np.float32)
+    depths = np.zeros([len(VisbleCorpus3DPointId)], dtype=np.float32)
+    colors = np.zeros([len(VisbleCorpus3DPointId), 3], dtype=np.uint8)
+    points3d = np.zeros([len(VisbleCorpus3DPointId), 3], dtype=np.float32)
     for ii in range(len(VisbleCorpus3DPointId)):
         id3D = VisbleCorpus3DPointId[ii]
         p3d = CorpusInfo.xyz[id3D]
@@ -495,7 +495,7 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid,
         # Collect results
         projected[ii] = pt2D[0], pt2D[1]
         depths[ii] = depth
-        colors[ii] = rgb.astype(np.float) / 255
+        colors[ii] = rgb
         points3d[ii] = p3d
 
     # with open('{:04d}.txt'.format(testFid), 'w') as fout:
@@ -571,7 +571,7 @@ def main():
         for i in range(len(projected)):
             xyz = projected[i]
             x, y = np.round(xyz[0]).astype(int), np.round(xyz[1]).astype(int)
-            img2[y-5:y+5, x-5:x+5] = (colors[i]*255).astype(np.uint8)
+            img2[y-5:y+5, x-5:x+5] = colors[i]
             img[y-5:y+5, x-5:x+5, 0] = 255
 
         # Resize then show to speed up
