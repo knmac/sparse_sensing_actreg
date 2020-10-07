@@ -129,6 +129,7 @@ class MyWorker(Thread):
                 project_vid(vid_path, result_path, report_path)
             finally:
                 self.queue.task_done()
+                print('--> Finished {}...'.format(vid_id))
 
 
 def main(args):
