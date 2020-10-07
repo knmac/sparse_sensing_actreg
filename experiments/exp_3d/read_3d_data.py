@@ -28,7 +28,7 @@ class CameraData():
     """
     def __init__(self):
         self.frameID = None
-        self.valid = None
+        self.valid = False
         self.width = None
         self.height = None
         self.LensModel = None
@@ -347,14 +347,18 @@ def read_intrinsic_extrinsic(path, view_id=0, startF=0, stopF=None):
     # Read intrinsic parameters
     fname = os.path.join(path, 'Intrinsic_{:04d}.txt'.format(view_id))
     assert os.path.isfile(fname), 'Cannot find {}...'.format(fname)
-
     content = open(fname, 'r').read().splitlines()
+
+    # Automatically set the stopF if not given
     if stopF is None:
-        # Automatically set the stopF if not given
         stopF = int(content[-1].split(' ')[0])
 
+    # Generate vInfo object
     vInfo = VideoData()
+    vInfo.start_time, vInfo.stop_time, vInfo.nframes = startF, stopF, stopF+1
     vInfo.VideoInfo = np.array([CameraData() for _ in range(stopF+1)])
+
+    # Parse each line in the content
     for line in content:
         toks = line.split(' ')
 
@@ -450,10 +454,11 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid,
         projected: (N, 2) projected 2D locations in image plane of visible points
         depths: (N,) depth in camera plane of visible points
         colors: (N, 3) RGB colors of the visible points
-        points3d: (N, 3) original 3D locations if world frame of visible points
+        points3d: (N, 3) original 3D locations in world plane of visible points
     """
-    assert vInfo.VideoInfo[testFid].valid, \
-        print('The selected frame is not localized to the Corpus')
+    if not vInfo.VideoInfo[testFid].valid:
+        # print('The selected frame is not localized to the Corpus')
+        return None, None, None, None
 
     # Find the 2 nearest frame and the corpus points in those 2 nn frames
     # because the frame we need may not exist in the corpus
