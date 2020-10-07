@@ -138,12 +138,14 @@ def main(args):
     vid_list = natsorted(vid_list)
 
     queue = Queue()
-    for x in range(8):
+    for x in range(args.num_workers):
         worker = MyWorker(queue, args.result_dir, args.report_dir)
         worker.daemon = True
         worker.start()
+
     for vid_path in vid_list:
         queue.put(vid_path)
+
     queue.join()
 
     return 0
