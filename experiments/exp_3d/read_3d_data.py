@@ -246,6 +246,13 @@ def project_and_distort(WC, P, K, distortion):
 def read_corpus(path):
     """Read the corpus of 3d points from a video
 
+    The `path` must contains:
+    path/
+    └── Corpus/
+        ├── Corpus_3D.txt
+        ├── Corpus_threeDIdAllViews.dat
+        └── CameraToBuildCorpus3.txt
+
     Args:
         path: path to the directory contaiing `Corpus` of a video
 
@@ -315,14 +322,20 @@ def read_corpus(path):
     return CorpusInfo, vCorpus_cid_Lcid_Lfid
 
 
-def read_intrinsic_extrinsic(path, view_id=0, startF=0, stopF=999999):
+def read_intrinsic_extrinsic(path, view_id=0, startF=0, stopF=None):
     """Read intrinsic and extrinsic parameters from all frames of a video
+
+    The `path` must contains:
+    path/
+    ├── Intrinsic_[view_id].txt
+    └── CamPose_[view_id].txt
 
     Args:
         path: path to the video, containing intrinsic and extrinsic files
         view_id: id of the view
         startF: starting frame index
-        stopF: stopping frame index
+        stopF: stopping frame index. If None, will parse the last line to get
+            this frame index
 
     Return:
         vInfo: video information containing intrinsic and extrinsic parameters
@@ -332,12 +345,16 @@ def read_intrinsic_extrinsic(path, view_id=0, startF=0, stopF=999999):
 
     # -------------------------------------------------------------------------
     # Read intrinsic parameters
-    vInfo = VideoData()
-    vInfo.VideoInfo = np.array([CameraData() for _ in range(stopF+1)])
     fname = os.path.join(path, 'Intrinsic_{:04d}.txt'.format(view_id))
     assert os.path.isfile(fname), 'Cannot find {}...'.format(fname)
 
     content = open(fname, 'r').read().splitlines()
+    if stopF is None:
+        # Automatically set the stopF if not given
+        stopF = int(content[-1].split(' ')[0])
+
+    vInfo = VideoData()
+    vInfo.VideoInfo = np.array([CameraData() for _ in range(stopF+1)])
     for line in content:
         toks = line.split(' ')
 
@@ -526,7 +543,7 @@ def main():
 
     # Read camera parameters
     st = time.time()
-    vInfo = read_intrinsic_extrinsic(path, stopF=5931)
+    vInfo = read_intrinsic_extrinsic(path)
     print('Reading camera parameters: {:.03f}s'.format(time.time() - st))
 
     # projected, depths, colors, _ = project_frame(20, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid)
