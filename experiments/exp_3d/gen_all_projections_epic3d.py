@@ -62,6 +62,7 @@ def project_vid(vid_path, result_path, report_path):
     """
     # Skip if files exist
     if os.path.isfile(result_path) and os.path.isfile(report_path):
+        print('    File exists -> Skipped')
         results = pickle.load(open(result_path, 'rb'))
         report = pickle.load(open(report_path, 'rb'))
         return results, report

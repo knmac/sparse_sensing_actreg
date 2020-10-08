@@ -467,8 +467,11 @@ def project_frame(testFid, vInfo, CorpusInfo, vCorpus_cid_Lcid_Lfid,
         return None, None, None, None
     assert vCorpus_cid_Lcid_Lfid[ii-1, 2] <= testFid <= vCorpus_cid_Lcid_Lfid[ii, 2]
     nn2 = [vCorpus_cid_Lcid_Lfid[ii-1, 1], vCorpus_cid_Lcid_Lfid[ii, 1]]
-    VisbleCorpus3DPointId = CorpusInfo.threeDIdAllViews[nn2[0]] + \
-        CorpusInfo.threeDIdAllViews[nn2[1]]
+    try:
+        VisbleCorpus3DPointId = CorpusInfo.threeDIdAllViews[nn2[0]] + \
+            CorpusInfo.threeDIdAllViews[nn2[1]]
+    except IndexError:
+        return None, None, None, None
 
     # Get unique points to reduce size
     if unique_points:
