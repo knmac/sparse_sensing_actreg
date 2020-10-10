@@ -63,9 +63,10 @@ def project_vid(vid_path, result_path, report_path):
     # Skip if files exist
     if os.path.isfile(result_path) and os.path.isfile(report_path):
         print('    File exists -> Skipped')
-        results = pickle.load(open(result_path, 'rb'))
-        report = pickle.load(open(report_path, 'rb'))
-        return results, report
+        return
+        # results = pickle.load(open(result_path, 'rb'))
+        # report = pickle.load(open(report_path, 'rb'))
+        # return results, report
 
     results = {}
     report = {}
@@ -103,13 +104,17 @@ def project_vid(vid_path, result_path, report_path):
 
     proj_time = time() - st
     report['time_proj_total'] = proj_time
+    if vinfo.nframes == len(report['broken_frames']):
+        print('    All frames broken: {}'.format(os.path.basename(vid_path)))
+        return
+
     report['time_proj_avg'] = proj_time / (vinfo.nframes - len(report['broken_frames']))
 
     # Save results ------------------------------------------------------------
     pickle.dump(report, open(report_path, 'wb'))
     pickle.dump(results, open(result_path, 'wb'))
 
-    return results, report
+    # return results, report
 
 
 class MyWorker(Thread):
@@ -126,7 +131,7 @@ class MyWorker(Thread):
                 vid_id = os.path.basename(vid_path)
                 result_path = os.path.join(self.result_dir, vid_id+'.pkl')
                 report_path = os.path.join(self.report_dir, vid_id+'.pkl')
-                print('Processing {}...'.format(vid_id))
+                print('Processing {}. Queue size = {}'.format(vid_id, self.queue.qsize()))
                 project_vid(vid_path, result_path, report_path)
             finally:
                 self.queue.task_done()
