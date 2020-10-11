@@ -62,11 +62,16 @@ def project_vid(vid_path, result_path, report_path):
     """
     # Skip if files exist
     if os.path.isfile(result_path) and os.path.isfile(report_path):
-        print('    File exists -> Skipped')
+        print('    Skipping existed file: {}'.format(os.path.basename(vid_path)))
         return
         # results = pickle.load(open(result_path, 'rb'))
         # report = pickle.load(open(report_path, 'rb'))
         # return results, report
+
+    # Skip if data is bad
+    if os.path.basename(vid_path) in ['P07_12', 'P10_03']:
+        print('    Skipping bad data: {}'.format(os.path.basename(vid_path)))
+        return
 
     results = {}
     report = {}
