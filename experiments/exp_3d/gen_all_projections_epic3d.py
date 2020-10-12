@@ -2,7 +2,7 @@
 """
 import os
 import sys
-from time import time
+from time import time, sleep
 from glob import glob
 import pickle
 import argparse
@@ -131,8 +131,8 @@ class MyWorker(Thread):
 
     def run(self):
         while True:
-            vid_path = self.queue.get()
             try:
+                vid_path = self.queue.get()
                 vid_id = os.path.basename(vid_path)
                 result_path = os.path.join(self.result_dir, vid_id+'.pkl')
                 report_path = os.path.join(self.report_dir, vid_id+'.pkl')
@@ -158,6 +158,7 @@ def main(args):
     for vid_path in vid_list:
         queue.put(vid_path)
 
+    sleep(3)
     queue.join()
 
     return 0
