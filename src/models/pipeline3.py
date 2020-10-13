@@ -1,9 +1,12 @@
 """Pipeline version 3 - Run only hallucinator
+
+Include teacher forcing ratio
 """
 import sys
 import os
 
 import torch
+import numpy as np
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -15,17 +18,20 @@ from src.utils.load_cfg import ConfigLoader
 
 class Pipeline3(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
-                 new_length, rnn_win_len, attention_layer, attention_dim,
-                 feat_model_cfg, hallu_model_cfg):
+                 new_length, attention_layer, attention_dim,
+                 rnn_prefix_len, tf_decay, feat_model_cfg, hallu_model_cfg):
         super(Pipeline3, self).__init__(device)
 
         self.num_class = num_class
         self.modality = modality
         self.num_segments = num_segments
         self.new_length = new_length
-        self.rnn_win_len = rnn_win_len  # N frames to feed in RNN at a time
         self.attention_layer = attention_layer
         self.attention_dim = attention_dim
+
+        self.rnn_prefix_len = rnn_prefix_len  # N frames to feed in RNN at a time
+        self.tf_ratio = 1.0  # Initial teacher forcing ratio
+        self.tf_decay = tf_decay
 
         # Generate feature extraction model
         name, params = ConfigLoader.load_model_cfg(feat_model_cfg)
@@ -62,29 +68,10 @@ class Pipeline3(BaseModel):
 
         # Hallucination -------------------------------------------------------
         # Attention shape: [B, T, C, H, W]
-        patch_in = attn[:, :self.rnn_win_len]  # first patch
-        hallu = torch.zeros_like(attn)
-        hidden = None
-        first_patch = True
-
-        idx = self.rnn_win_len - 1
-        while idx < self.num_segments:
-            # Feed the patch to RNN
-            patch_out, hidden = self.hallu_model(patch_in, hidden)
-            last_out = patch_out[:, -1].unsqueeze(dim=1)
-
-            # Collect the output hallucination
-            if first_patch:
-                hallu[:, :self.rnn_win_len] = patch_out
-                first_patch = False
-            else:
-                hallu[:, idx] = last_out
-
-            # Update the new output to patch_in
-            patch_in = torch.cat([patch_in[:, 1:], last_out], dim=1)
-            idx += 1
-
-        # hallu = self.hallu_model(attn)
+        if self.training:
+            hallu = self._forward_hallu_train(attn)
+        else:
+            hallu = self._forward_hallu_val(attn)
         self._hallu = hallu
 
         # Dummy classification output -----------------------------------------
@@ -98,6 +85,89 @@ class Pipeline3(BaseModel):
 
         return output, self.compare_belief().unsqueeze(dim=0)
 
+    def _forward_hallu_train(self, inputs):
+        """Forward routine of hallucination model for training phase
+        Use teacher forcing to improve performance
+
+        Args:
+            inputs: attention of shape (B, T, C, H, W)
+
+        Return:
+            hallu: hallucination of shape (B, T-rnn_prefix_len, C, H, W)
+        """
+        target_length = self.num_segments - self.rnn_prefix_len
+        predictions = []
+
+        # First batch
+        predicted, hidden = self.hallu_model(
+            inputs[:, :self.rnn_prefix_len], hidden=None)
+        predicted = predicted[:, -1].unsqueeze(dim=1)  # Get only future prediction
+        predictions.append(predicted)
+
+        # Remaining batches
+        tf_mask = np.random.uniform(size=target_length-1) < self.tf_ratio
+        i = 0
+        while i < target_length - 1:
+            contiguous_frames = 1
+            # Batch together consecutive teacher forcing to improve performance
+            if tf_mask[i]:
+                while (i+contiguous_frames < target_length-1) \
+                        and (tf_mask[i+contiguous_frames]):
+                    contiguous_frames += 1
+
+                # Feed ground truth
+                ix_start = self.rnn_prefix_len + i
+                ix_stop = self.rnn_prefix_len + i + contiguous_frames
+                predicted, hidden = self.hallu_model(inputs[:, ix_start:ix_stop], hidden)
+            else:
+                # Feed own output
+                predicted, hidden = self.hallu_model(predicted, hidden)
+                predicted = predicted[:, -1].unsqueeze(dim=1)  # Get only future prediction
+
+            predictions.append(predicted)
+            if contiguous_frames > 1:
+                predicted = predicted[:, -1:]
+            i += contiguous_frames
+
+        hallu = torch.cat(predictions, dim=1)
+        assert hallu.shape[1] == target_length
+        return hallu
+
+    def _forward_hallu_val(self, inputs):
+        """Forward routine of hallucination model for evaluation phase
+
+        Args:
+            inputs: attention of shape (B, T, C, H, W)
+
+        Return:
+            hallu: hallucination of shape (B, T-rnn_prefix_len, C, H, W)
+        """
+        target_length = self.num_segments - self.rnn_prefix_len
+        predictions = []
+
+        # First batch
+        predicted, hidden = self.hallu_model(
+            inputs[:, :self.rnn_prefix_len], hidden=None)
+        predicted = predicted[:, -1].unsqueeze(dim=1)  # Get only future prediction
+        predictions.append(predicted)
+
+        # Remaining batches
+        for i in range(target_length - 1):
+            # Feed own output
+            predicted, hidden = self.hallu_model(predicted, hidden)
+            predicted = predicted[:, -1].unsqueeze(dim=1)  # Get only future prediction
+            predictions.append(predicted)
+
+        hallu = torch.cat(predictions, dim=1)
+        assert hallu.shape[1] == target_length
+        return hallu
+
+    def decay_teacher_forcing_ratio(self):
+        """Decay the teacher forcing ratio `self.tf_ratio` by the factor of
+        `self.tf_decay`
+        """
+        self.tf_ratio *= self.tf_decay
+
     def compare_belief(self):
         """Compare between attention and hallucination. Do NOT call directly.
 
@@ -105,14 +175,13 @@ class Pipeline3(BaseModel):
         """
         assert hasattr(self, '_attn') and hasattr(self, '_hallu'), \
             'Attributes are not found'
-        assert self._attn.shape == self._hallu.shape, 'Mismatching shapes'
         assert torch.all(self._attn >= 0) and torch.all(self._hallu >= 0)
 
         # Get attention of future frames
-        attn_future = self._attn[:, self.rnn_win_len:]
+        attn_future = self._attn[:, self.rnn_prefix_len:]
 
         # Get hallucination from current frames (for future frames)
-        hallu_current = self._hallu[:, self.rnn_win_len-1:-1]
+        hallu_current = self._hallu
 
         # Compare belief
         # Reshape (B,T,C,H,W) --> (B*T,C,H,W) to compare individual images

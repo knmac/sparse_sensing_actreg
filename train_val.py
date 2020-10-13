@@ -87,6 +87,11 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
             MiscUtils.save_progress(model, optimizer, args.savedir, best_val,
                                     epoch, is_best)
 
+        # Decay teacher forcing if possible
+        if hasattr(model.module, 'decay_teacher_forcing_ratio'):
+            sum_writer.add_scalar('data/tf_ratio', model.module.tf_ratio, run_iter)
+            model.module.decay_teacher_forcing_ratio()
+
     # Done training
     sum_writer.close()
 
