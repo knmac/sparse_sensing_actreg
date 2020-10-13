@@ -10,6 +10,9 @@ tags
 .ctagsignore
 pretrained/*.tar
 pretrained/san_imagenet/
+pretrained/san19_epic_otherscales/64/
+pretrained/san19_epic_otherscales/168/
+pretrained/san19_epic_otherscales/112/best.model
 cache/
 
 # Byte-compiled / optimized / DLL files
