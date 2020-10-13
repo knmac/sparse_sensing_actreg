@@ -64,10 +64,11 @@ class HalluConvLSTM2(BaseModel):
 
         Args:
             x: input tensor of shap (B, T, C, H, W)
+            hidden: input hidden memory
 
         Return:
             output: hallucination results (B, T, C, H, W)
-            hidden: hidden memory
+            hidden: output hidden memory
         """
         if hidden is None:
             hidden = self.rnn._init_hidden(batch_size=x.shape[0],
