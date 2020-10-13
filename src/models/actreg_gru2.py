@@ -1,5 +1,6 @@
 """Action recognition using GRU
 """
+import torch
 from torch import nn
 from torch.nn.init import normal_, constant_
 
@@ -9,7 +10,8 @@ from .base_model import BaseModel
 class ActregGRU2(BaseModel):
 
     def __init__(self, device, modality, num_class, dropout, feature_dim,
-                 rnn_input_size, rnn_hidden_size, rnn_num_layers):
+                 rnn_input_size, rnn_hidden_size, rnn_num_layers,
+                 consensus_type):
         super(ActregGRU2, self).__init__(device)
 
         self.modality = modality
@@ -20,6 +22,8 @@ class ActregGRU2(BaseModel):
         self.rnn_input_size = rnn_input_size
         self.rnn_hidden_size = rnn_hidden_size
         self.rnn_num_layers = rnn_num_layers
+
+        self.consensus_type = consensus_type
 
         # Prepare some generic layers and variables
         self.relu = nn.ReLU()
@@ -75,7 +79,32 @@ class ActregGRU2(BaseModel):
         if isinstance(self.num_class, (list, tuple)):
             out_verb = self.fc_verb(x)
             out_noun = self.fc_noun(x)
-            output = (out_verb, out_noun)
+            output = (self.consensus(out_verb), self.consensus(out_noun))
         else:
             output = self.fc_action(x)
+            output = self.consensus(output)
         return output, hidden
+
+    def consensus(self, data):
+        """Consensus over time domain of data tensor
+
+        Args:
+            data: tensor of shape (B, T, C)
+
+        Return:
+            consensus data wrt consensus_type
+        """
+        assert data.ndim == 3
+
+        if self.consensus_type == 'full':
+            # Return all frames
+            return data
+        elif self.consensus_type == 'last':
+            # Return the last frame
+            return data[:, -1]
+        elif self.consensus_type == 'avg':
+            # Average across frames
+            return torch.mean(data, dim=1)
+        else:
+            print('consensus_type not supported: {}'.format(self.consensus_type))
+            raise NotImplementedError
