@@ -5,6 +5,6 @@ model_params:
     san_kernels: [3, 7, 7, 7, 7]
     san_pretrained_weights: 
         RGB: 'pretrained/san19_epic_otherscales/112/rgb.model'
-        Spec: 'pretrained/san19_epic_otherscales/112/spec.model'
+        Spec: 'pretrained/san19_epic_07-10/spec.model'
     new_input_size: 112
     new_crop_size: 128
