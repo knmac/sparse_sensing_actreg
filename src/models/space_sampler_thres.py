@@ -1,7 +1,5 @@
 """Spatial sampler with threshold
 """
-from time import time
-
 import torch
 import numpy as np
 from skimage import measure
@@ -39,40 +37,40 @@ class SpatialSamplerThres():
         """
         self._prev_bboxes = None
 
-    def sample_frame(self, x, prev_hallu, reorder):
+    def sample_frame(self, x, attn, reorder):
         """Sampling function
 
         Args:
             x: batch of current frames. Shape of (B, C1, H1, W1)
-            prev_hallu: hallucination of attention from the previous frame.
-                Shape of (B, C2, H2, W2)
+            attn: attention of the current frame. Shape of (B, C2, H2, W2)
+                Can be groundtruth attention or halllucination from prev frame
 
         Return:
             results: tensor of shape [B, top_k, 4]. The last dimension defines
                 the bounding boxes as (top, left, bottom, right)
         """
-        assert x.shape[0] == prev_hallu.shape[0]
+        assert x.shape[0] == attn.shape[0]
         assert x.shape[-1] == x.shape[-2]
-        assert prev_hallu.shape[-1] == prev_hallu.shape[-2]
+        assert attn.shape[-1] == attn.shape[-2]
         batch_size = x.shape[0]
         if self._prev_bboxes is not None:
             assert len(self._prev_bboxes) == batch_size
 
-        # Flatten the hallucination/attention
-        prev_hallu = prev_hallu.mean(dim=1)
+        # Flatten the attention
+        attn = attn.mean(dim=1)
 
         # For each sample in batch
         results = []
         for b in range(batch_size):
             # Get bboxes in attention plane
             props, top_segids = self._get_bbox_from_attn(
-                prev_hallu[b].cpu().detach().numpy(), simple_return=True)
+                attn[b].cpu().detach().numpy(), simple_return=True)
 
             # Project to image plane
             bboxes = []
             for sid in top_segids:
                 top, left, bottom, right = self._project_image_plane(
-                    props[sid], attn_size=prev_hallu.shape[-1])
+                    props[sid], attn_size=attn.shape[-1])
                 bboxes.append([top, left, bottom, right])
 
             # Append the last item if not enough bboxes
@@ -208,17 +206,19 @@ class SpatialSamplerThres():
 
 
 if __name__ == '__main__':
+    from time import time
+
     spatial_sampler = SpatialSamplerThres(
         top_k=3, min_b_size=64, max_b_size=112, alpha=1.0, beta=0.1, img_size=224)
 
     batch = 5
     length = 10
     x = torch.rand((batch, length, 3, 224, 224), dtype=torch.float32).cuda()
-    prev_hallu = torch.rand([batch, length, 64, 14, 14], dtype=torch.float32).cuda()
+    attn = torch.rand([batch, length, 64, 14, 14], dtype=torch.float32).cuda()
 
     spatial_sampler.reset()
     for t in range(length):
         st = time()
-        results = spatial_sampler.sample_frame(x[:, t], prev_hallu[:, t], reorder=True)
+        results = spatial_sampler.sample_frame(x[:, t], attn[:, t], reorder=True)
         assert results.shape == (batch, 3, 4)
         print(time() - st)
