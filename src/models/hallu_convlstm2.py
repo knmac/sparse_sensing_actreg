@@ -78,14 +78,14 @@ class HalluConvLSTM2(BaseModel):
         # Encoder
         # (B, T, C, H, W) --> (B*T, C, H, W)
         _, T, C, H, W = x.shape
-        x = x.view((-1, C, H, W))
+        x = x.reshape((-1, C, H, W))
 
         # Encode
         x = self.relu(self.bn_encoder(self.conv_encoder(x)))
 
         # (B*T, C, H, W) --> (B, T, C, H, W)
         _, C, H, W = x.shape
-        x = x.view((-1, T, C, H, W))
+        x = x.reshape((-1, T, C, H, W))
 
         # ---------------------------------------------------------------------
         # RNN
@@ -97,13 +97,13 @@ class HalluConvLSTM2(BaseModel):
         # Decoder
         # (B, T, C, H, W) --> (B*T, C, H, W)
         _, T, C, H, W = x.shape
-        x = x.view((-1, C, H, W))
+        x = x.reshape((-1, C, H, W))
 
         # Decode
         x = self.relu(self.bn_decoder(self.conv_decoder(x)))
 
         # (B*T, C, H, W) --> (B, T, C, H, W)
         _, C, H, W = x.shape
-        x = x.view((-1, T, C, H, W))
+        x = x.reshape((-1, T, C, H, W))
 
         return x, hidden
