@@ -3,13 +3,14 @@ channels:
   - pytorch
 dependencies:
   - python=3.6
-  - cudatoolkit=9.2
+  - cudatoolkit=10.2
   - pip:
     - torch==1.5.1
     - torchvision==0.6.1
     - epic-kitchens==1.7.0
     - librosa==0.7.0
-    - cupy-cuda92==7.6.0
+    - numba==0.45.1
+    - cupy-cuda102==7.6.0
     - nose2
     - pyyaml
     - opencv-python
@@ -18,4 +19,3 @@ dependencies:
     - natsort
     - seaborn
     - tensorboard
-    - tqdm
