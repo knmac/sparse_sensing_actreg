@@ -11,7 +11,7 @@ class ActregGRU2(BaseModel):
 
     def __init__(self, device, modality, num_class, dropout, feature_dim,
                  rnn_input_size, rnn_hidden_size, rnn_num_layers,
-                 consensus_type):
+                 consensus_type, extra_dim=0):
         super(ActregGRU2, self).__init__(device)
 
         self.modality = modality
@@ -32,7 +32,9 @@ class ActregGRU2(BaseModel):
         _std = 0.001
 
         # Fusion layer for multiple modalities
-        self.fc1 = nn.Linear(len(modality)*feature_dim, rnn_input_size)
+        # self.fc1 = nn.Linear(len(modality)*feature_dim, rnn_input_size)
+        _input_dim = feature_dim*len(modality) + extra_dim
+        self.fc1 = nn.Linear(_input_dim, rnn_input_size)
         normal_(self.fc1.weight, 0, _std)
         constant_(self.fc1.bias, 0)
 

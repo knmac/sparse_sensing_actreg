@@ -7,7 +7,7 @@ from scipy.optimize import linear_sum_assignment
 
 
 class SpatialSamplerThres():
-    def __init__(self, top_k, min_b_size, max_b_size, alpha, beta, img_size):
+    def __init__(self, top_k, min_b_size, max_b_size, alpha, beta):
         """Initialize the spatial sampler.
 
         Mask will be created from attention by thresholding as:
@@ -19,7 +19,6 @@ class SpatialSamplerThres():
             max_b_size: (int) maximum size of each bbox to sample
             alpha: (float) parameter to threshold the attention
             beta: (float) parameter to threshold the attention
-            img_size: (int) original image size
         """
         # super(SpatialSampler, self).__init__(device)
 
@@ -28,31 +27,30 @@ class SpatialSamplerThres():
         self.max_b_size = max_b_size
         self.alpha = alpha
         self.beta = beta
-        self.img_size = img_size
 
         self._prev_bboxes = None
 
     def reset(self):
-        """Reset _prev_bbox
+        """Reset _prev_bbox. Use at the start of a frame sequence
         """
         self._prev_bboxes = None
 
-    def sample_frame(self, x, attn, reorder):
+    def sample_frame(self, attn, img_size, reorder):
         """Sampling function
 
         Args:
-            x: batch of current frames. Shape of (B, C1, H1, W1)
             attn: attention of the current frame. Shape of (B, C2, H2, W2)
                 Can be groundtruth attention or halllucination from prev frame
+            img_size: (int) size of a square image frame
+            reorder: whether to reorder the bboxes
 
         Return:
             results: tensor of shape [B, top_k, 4]. The last dimension defines
                 the bounding boxes as (top, left, bottom, right)
         """
-        assert x.shape[0] == attn.shape[0]
-        assert x.shape[-1] == x.shape[-2]
         assert attn.shape[-1] == attn.shape[-2]
-        batch_size = x.shape[0]
+        attn_size = attn.shape[-1]
+        batch_size = attn.shape[0]
         if self._prev_bboxes is not None:
             assert len(self._prev_bboxes) == batch_size
 
@@ -70,7 +68,7 @@ class SpatialSamplerThres():
             bboxes = []
             for sid in top_segids:
                 top, left, bottom, right = self._project_image_plane(
-                    props[sid], attn_size=attn.shape[-1])
+                    props[sid], attn_size=attn_size, img_size=img_size)
                 bboxes.append([top, left, bottom, right])
 
             # Append the last item if not enough bboxes
@@ -89,6 +87,80 @@ class SpatialSamplerThres():
             # Collect results
             results.append(bboxes)
         return np.array(results)
+
+    def sample_multiple_frames(self, attns, img_size, reorder, avg_across_time):
+        """Wrapper of sample_frame for multiple frames
+
+        Args:
+            attn: attention of all frames. Shape of (B, T, C2, H2, W2)
+                Can be groundtruth attention or halllucination from prev frame
+            img_size: (int) size of a square image frame
+            reorder: whether to reorder the bboxes
+            avg_across_time: whether to average the bbox size across time.
+                `reorder` must be True to use `avg_across_time`
+
+        Return:
+            results: tensor of shape [B, T, top_k, 4]. The last dimension defines
+                the bounding boxes as (top, left, bottom, right)
+        """
+        if avg_across_time is True:
+            assert reorder is True, \
+                '`reorder` must be True to use `avg_across_time`'
+
+        n_frames = attns.shape[1]
+        all_bboxes = []
+
+        self.reset()
+        for t in range(n_frames):
+            bboxes = self.sample_frame(attns[:, t], img_size, reorder)
+            all_bboxes.append(np.expand_dims(bboxes, axis=1))
+        all_bboxes = np.concatenate(all_bboxes, axis=1)
+
+        if not avg_across_time:
+            return all_bboxes
+
+        # Get the average across time -----------------------------------------
+        # Find the average heights and widths
+        heights = all_bboxes[:, :, :, 2] - all_bboxes[:, :, :, 0]
+        widths = all_bboxes[:, :, :, 3] - all_bboxes[:, :, :, 1]
+        avg_heights = np.round(heights.mean(axis=1, keepdims=True)).astype(int)
+        avg_widths = np.round(widths.mean(axis=1, keepdims=True)).astype(int)
+
+        # Repeat to broadcast
+        avg_heights = np.repeat(avg_heights, n_frames, axis=1)
+        avg_widths = np.repeat(avg_widths, n_frames, axis=1)
+
+        # Find the centers
+        y_centers = 0.5*(all_bboxes[:, :, :, 2] + all_bboxes[:, :, :, 0])
+        x_centers = 0.5*(all_bboxes[:, :, :, 3] + all_bboxes[:, :, :, 1])
+
+        # Get new top, left, bottom, right
+        new_tops = y_centers - (avg_heights // 2)
+        new_bottoms = y_centers + (avg_heights // 2)
+        new_lefts = x_centers - (avg_widths // 2)
+        new_rights = x_centers + (avg_widths // 2)
+
+        # Adjust
+        delta = (-new_tops) * (new_tops < 0)
+        new_tops += delta
+        new_bottoms += delta
+
+        delta = (new_bottoms-img_size) * (new_bottoms > img_size)
+        new_tops -= delta
+        new_bottoms -= delta
+
+        delta = (-new_lefts) * (new_lefts < 0)
+        new_lefts += delta
+        new_rights += delta
+
+        delta = (new_rights-img_size) * (new_rights > img_size)
+        new_lefts -= delta
+        new_rights -= delta
+
+        # Collect new bboxes
+        new_bboxes = np.stack([new_tops, new_lefts, new_bottoms, new_rights],
+                              axis=3).astype(int)
+        return new_bboxes
 
     def _get_bbox_from_attn(self, attn, simple_return=True):
         """Segment and get bbox from attention map
@@ -125,7 +197,7 @@ class SpatialSamplerThres():
             return props, top_segids
         return props, top_segids, mask, segments, scores
 
-    def _project_image_plane(self, prop, attn_size):
+    def _project_image_plane(self, prop, attn_size, img_size):
         """Project a bounding box to image plane
 
         Args:
@@ -135,7 +207,6 @@ class SpatialSamplerThres():
             top, left, bottom, right: corner positions of the bbox in image plane
         """
         # Get the scale from original image size to the current attention size
-        img_size = self.img_size
         scale = img_size / attn_size
 
         # Get the square bbox in attn plane
@@ -206,19 +277,27 @@ class SpatialSamplerThres():
 
 
 if __name__ == '__main__':
+    """Test the implementation"""
     from time import time
 
     spatial_sampler = SpatialSamplerThres(
-        top_k=3, min_b_size=64, max_b_size=112, alpha=1.0, beta=0.1, img_size=224)
+        top_k=3, min_b_size=64, max_b_size=112, alpha=1.0, beta=0.1)
 
     batch = 5
     length = 10
-    x = torch.rand((batch, length, 3, 224, 224), dtype=torch.float32).cuda()
+    img_size = 224
+    x = torch.rand((batch, length, 3, img_size, img_size), dtype=torch.float32).cuda()
     attn = torch.rand([batch, length, 64, 14, 14], dtype=torch.float32).cuda()
 
     spatial_sampler.reset()
     for t in range(length):
         st = time()
-        results = spatial_sampler.sample_frame(x[:, t], attn[:, t], reorder=True)
+        results = spatial_sampler.sample_frame(attn[:, t], img_size, reorder=True)
         assert results.shape == (batch, 3, 4)
         print(time() - st)
+
+    print('------------------------------------------------------------------')
+    st = time()
+    spatial_sampler.sample_multiple_frames(attn, img_size, reorder=True,
+                                           avg_across_time=True)
+    print(time() - st)

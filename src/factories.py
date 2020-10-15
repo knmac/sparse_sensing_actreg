@@ -28,6 +28,8 @@ from src.models.pipeline3 import Pipeline3
 from src.models.hallu_convlstm2 import HalluConvLSTM2
 from src.models.pipeline4 import Pipeline4
 from src.models.actreg_gru2 import ActregGRU2
+from src.models.pipeline5 import Pipeline5
+from src.models.space_sampler_thres import SpatialSamplerThres
 
 import src.utils.logging as logging
 
@@ -106,6 +108,8 @@ class ModelFactory(BaseFactory):
             'HalluConvLSTM2': HalluConvLSTM2,
             'Pipeline4': Pipeline4,
             'ActregGRU2': ActregGRU2,
+            'Pipeline5': Pipeline5,
+            'SpatialSamplerThres': SpatialSamplerThres,
         }
 
     def generate(self, model_name, **kwargs):
