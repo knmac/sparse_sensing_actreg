@@ -8,8 +8,8 @@ dependencies:
     - torch==1.5.1
     - torchvision==0.6.1
     - epic-kitchens==1.7.0
-    - librosa
-    - cupy-cuda92 
+    - librosa==0.7.0
+    - cupy-cuda92==7.6.0
     - nose2
     - pyyaml
     - opencv-python
