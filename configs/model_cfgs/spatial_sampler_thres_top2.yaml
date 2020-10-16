@@ -1,0 +1,7 @@
+model_name: 'SpatialSamplerThres'
+model_params:
+    top_k: 2
+    min_b_size: 64
+    max_b_size: 112
+    alpha: 1.0
+    beta: 0.3
