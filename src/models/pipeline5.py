@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
 
 import torch
+from torch import nn
 
 from .base_model import BaseModel
 from src.utils.load_cfg import ConfigLoader
@@ -21,7 +22,7 @@ class Pipeline5(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
                  new_length, attention_layer, attention_dim, dropout,
                  high_feat_model_cfg, low_feat_model_cfg, spatial_sampler_cfg,
-                 actreg_model_cfg):
+                 actreg_model_cfg, reduce_dim_low, reduce_dim_high):
         super(Pipeline5, self).__init__(device)
 
         self.num_class = num_class
@@ -31,6 +32,8 @@ class Pipeline5(BaseModel):
         self.attention_layer = attention_layer
         self.attention_dim = attention_dim
         self.dropout = dropout
+        self.reduce_dim_low = reduce_dim_low  # Applied for rgb_low+spec together
+        self.reduce_dim_high = reduce_dim_high  # Applied for each rgh_high of top_k
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
@@ -54,13 +57,26 @@ class Pipeline5(BaseModel):
         name, params = ConfigLoader.load_model_cfg(spatial_sampler_cfg)
         self.spatial_sampler = model_factory.generate(name, **params)
 
+        # FC layers to reduce visual feature dimension
+        self.fc_reduce_low = nn.Linear(
+            in_features=self.low_feat_model.feature_dim*len(modality),
+            out_features=reduce_dim_low,
+        ).to(device)
+        self.fc_reduce_high = nn.Linear(
+            in_features=self.high_feat_model.feature_dim,
+            out_features=reduce_dim_high,
+        ).to(device)
+        self.relu = nn.ReLU(inplace=True)
+
         # Generate action recognition model
         name, params = ConfigLoader.load_model_cfg(actreg_model_cfg)
         assert name in ['ActregGRU2'], \
             'Unsupported model: {}'.format(name)
+        real_dim = self.fc_reduce_low.out_features + \
+            self.fc_reduce_high.out_features*self.spatial_sampler.top_k
         params.update({
-            'feature_dim': self.low_feat_model.feature_dim,
-            'extra_dim': self.spatial_sampler.top_k * self.high_feat_model.feature_dim,
+            'feature_dim': 0,  # Use `real_dim` instead
+            'extra_dim': real_dim,
             'modality': self.modality,
             'num_class': self.num_class,
             'dropout': self.dropout,
@@ -79,6 +95,7 @@ class Pipeline5(BaseModel):
         low_feat = low_feat.view([batch_size,
                                   self.num_segments,
                                   len(self.modality)*self.low_feat_model.feature_dim])
+        low_feat = self.relu(self.fc_reduce_low(low_feat))
 
         # Extract attention
         attn = self.low_feat_model.rgb.get_attention_weight(
@@ -130,7 +147,7 @@ class Pipeline5(BaseModel):
 
             # Concat acrose batch dim and collect
             high_feat_k = torch.cat(high_feat_k, dim=0)
-            high_feat.append(high_feat_k)
+            high_feat.append(self.relu(self.fc_reduce_high(high_feat_k)))
 
         assert len(high_feat) == self.spatial_sampler.top_k
         assert high_feat[0].shape[0] == batch_size
@@ -140,8 +157,7 @@ class Pipeline5(BaseModel):
         all_feats = torch.cat([low_feat] + high_feat, dim=2)
         assert all_feats.ndim == 3
 
-        target_dim = self.low_feat_model.feature_dim*len(self.modality) + \
-            self.high_feat_model.feature_dim*self.spatial_sampler.top_k
+        target_dim = self.reduce_dim_low + self.reduce_dim_high*self.spatial_sampler.top_k
         assert all_feats.shape[2] == target_dim
 
         output, hidden = self.actreg_model(all_feats, hidden=None)
