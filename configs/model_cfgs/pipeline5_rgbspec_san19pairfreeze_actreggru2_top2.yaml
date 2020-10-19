@@ -6,8 +6,7 @@ model_params:
     actreg_model_cfg: 'configs/model_cfgs/actreggru2.yaml'
     num_class: [125, 352]
     num_segments: 10
-    reduce_dim_low: 256
-    reduce_dim_high: 128
+    reduce_dim: 128
     modality: ['RGB', 'Spec']
     attention_layer: ['layer3', '0']
     attention_dim: [32, 7, 7]

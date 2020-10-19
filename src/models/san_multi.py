@@ -208,14 +208,16 @@ class SANMulti(BaseModel):
 
         return base_model
 
-    def forward(self, x):
+    def forward(self, x, return_concat=True):
         """Forward to get the feature instead of getting the classification
 
         Args:
             x: dictionary inputs of multiple modalities
+            return_concat: whether to concatenate the features
 
         Return:
-            out_feat: concatenated feature output
+            out_feat: concatenated feature output if return_concat is True.
+                Otherwise, list of feature output wrt to self.modality
         """
         concatenated = []
 
@@ -242,7 +244,10 @@ class SANMulti(BaseModel):
 
             concatenated.append(base_out)
 
-        out_feat = torch.cat(concatenated, dim=1)
+        if return_concat:
+            out_feat = torch.cat(concatenated, dim=1)
+        else:
+            out_feat = concatenated
         return out_feat
 
     def freeze_fn(self, freeze_mode):

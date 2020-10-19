@@ -22,9 +22,14 @@ class Pipeline5(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
                  new_length, attention_layer, attention_dim, dropout,
                  high_feat_model_cfg, low_feat_model_cfg, spatial_sampler_cfg,
-                 actreg_model_cfg, reduce_dim_low, reduce_dim_high):
+                 actreg_model_cfg, reduce_dim):
         super(Pipeline5, self).__init__(device)
 
+        # Turn off cudnn benchmark because of different input size
+        # This is only effective whenever pipeline5 is used
+        torch.backends.cudnn.benchmark = False
+
+        # Save the input arguments
         self.num_class = num_class
         self.modality = modality
         self.num_segments = num_segments
@@ -32,8 +37,7 @@ class Pipeline5(BaseModel):
         self.attention_layer = attention_layer
         self.attention_dim = attention_dim
         self.dropout = dropout
-        self.reduce_dim_low = reduce_dim_low  # Applied for rgb_low+spec together
-        self.reduce_dim_high = reduce_dim_high  # Applied for each rgh_high of top_k
+        self.reduce_dim = reduce_dim
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
@@ -57,14 +61,18 @@ class Pipeline5(BaseModel):
         name, params = ConfigLoader.load_model_cfg(spatial_sampler_cfg)
         self.spatial_sampler = model_factory.generate(name, **params)
 
-        # FC layers to reduce visual feature dimension
+        # FC layers to reduce feature dimension
         self.fc_reduce_low = nn.Linear(
-            in_features=self.low_feat_model.feature_dim*len(modality),
-            out_features=reduce_dim_low,
+            in_features=self.low_feat_model.feature_dim,
+            out_features=reduce_dim,
         ).to(device)
         self.fc_reduce_high = nn.Linear(
             in_features=self.high_feat_model.feature_dim,
-            out_features=reduce_dim_high,
+            out_features=reduce_dim,
+        ).to(device)
+        self.fc_reduce_spec = nn.Linear(
+            in_features=self.low_feat_model.feature_dim,
+            out_features=reduce_dim,
         ).to(device)
         self.relu = nn.ReLU(inplace=True)
 
@@ -73,6 +81,7 @@ class Pipeline5(BaseModel):
         assert name in ['ActregGRU2'], \
             'Unsupported model: {}'.format(name)
         real_dim = self.fc_reduce_low.out_features + \
+            self.fc_reduce_spec.out_features + \
             self.fc_reduce_high.out_features*self.spatial_sampler.top_k
         params.update({
             'feature_dim': 0,  # Use `real_dim` instead
@@ -91,11 +100,19 @@ class Pipeline5(BaseModel):
 
         # Extract low resolutions features and attention ----------------------
         # Extract features
-        low_feat = self.low_feat_model({'RGB': _rgb_low, 'Spec': _spec})
+        assert self.low_feat_model.modality == ['RGB', 'Spec']
+        low_feat, spec_feat = self.low_feat_model({'RGB': _rgb_low, 'Spec': _spec},
+                                                  return_concat=False)
+
         low_feat = low_feat.view([batch_size,
                                   self.num_segments,
-                                  len(self.modality)*self.low_feat_model.feature_dim])
+                                  self.low_feat_model.feature_dim])
         low_feat = self.relu(self.fc_reduce_low(low_feat))
+
+        spec_feat = spec_feat.view([batch_size,
+                                    self.num_segments,
+                                    self.low_feat_model.feature_dim])
+        spec_feat = self.relu(self.fc_reduce_spec(spec_feat))
 
         # Extract attention
         attn = self.low_feat_model.rgb.get_attention_weight(
@@ -154,10 +171,11 @@ class Pipeline5(BaseModel):
         assert high_feat[0].shape[1] == self.num_segments
 
         # Action recognition --------------------------------------------------
-        all_feats = torch.cat([low_feat] + high_feat, dim=2)
+        all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
         assert all_feats.ndim == 3
 
-        target_dim = self.reduce_dim_low + self.reduce_dim_high*self.spatial_sampler.top_k
+        target_dim = self.reduce_dim*len(self.low_feat_model.modality) + \
+            self.reduce_dim*self.spatial_sampler.top_k
         assert all_feats.shape[2] == target_dim
 
         output, hidden = self.actreg_model(all_feats, hidden=None)
