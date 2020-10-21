@@ -24,7 +24,7 @@ logger = logging.get_logger(__name__)
 class MiscUtils:
 
     @staticmethod
-    def save_progress(model, optimizer, logdir, best_prec1, epoch, is_best=False):
+    def save_progress(model, optimizer, logdir, best_val, epoch, is_best=False):
         """Save the training progress for model and optimizer
 
         Data are saved as: [logdir]/epoch_[epoch].[extension]
@@ -51,7 +51,7 @@ class MiscUtils:
             'optimizer': optimizer.state_dict(),
             'rng_state': torch.get_rng_state(),
             'cuda_rng_state': torch.cuda.get_rng_state(),
-            'best_prec1': best_prec1,
+            'best_prec1': best_val,
         }
         torch.save(data, prefix+'.stat')
 
@@ -86,7 +86,7 @@ class MiscUtils:
         optimizer.load_state_dict(data['optimizer'])
         torch.set_rng_state(data['rng_state'])
         torch.cuda.set_rng_state(data['cuda_rng_state'])
-        best_prec1 = data['best_prec1']
+        best_val = data['best_prec1']
 
         lr = optimizer.param_groups[0]['lr']
         tmp = os.path.basename(prefix)
@@ -97,7 +97,7 @@ class MiscUtils:
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(device)
-        return lr, next_epoch, best_prec1
+        return lr, next_epoch, best_val
 
     @staticmethod
     def get_lastest_checkpoint(logdir, regex='epoch_*.model'):
