@@ -37,7 +37,7 @@ class Pipeline5(BaseModel):
         self.attention_layer = attention_layer
         self.attention_dim = attention_dim
         self.dropout = dropout
-        self.feat_process_type = feat_process_type  # [reduce, add]
+        self.feat_process_type = feat_process_type  # [reduce, add, cat]
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
@@ -90,6 +90,9 @@ class Pipeline5(BaseModel):
             assert self.low_feat_model.feature_dim == self.high_feat_model.feature_dim, \
                 'Feature dimensions must be the same to add'
             real_dim = self.low_feat_model.feature_dim
+        elif self.feat_process_type == 'cat':
+            real_dim = self.low_feat_model.feature_dim * len(modality) + \
+                self.high_feat_model.feature_dim * self.spatial_sampler.top_k
         else:
             raise NotImplementedError
 
@@ -130,6 +133,9 @@ class Pipeline5(BaseModel):
             low_feat = self.relu(self.fc_reduce_low(low_feat))
             spec_feat = self.relu(self.fc_reduce_spec(spec_feat))
         elif self.feat_process_type == 'add':
+            # Do nothing
+            pass
+        elif self.feat_process_type == 'cat':
             # Do nothing
             pass
 
@@ -187,6 +193,8 @@ class Pipeline5(BaseModel):
                 high_feat.append(self.relu(self.fc_reduce_high(high_feat_k)))
             elif self.feat_process_type == 'add':
                 high_feat.append(high_feat_k)
+            elif self.feat_process_type == 'cat':
+                high_feat.append(high_feat_k)
 
         assert len(high_feat) == self.spatial_sampler.top_k
         assert high_feat[0].shape[0] == batch_size
@@ -199,6 +207,8 @@ class Pipeline5(BaseModel):
             all_feats = low_feat + spec_feat
             for k in range(self.spatial_sampler.top_k):
                 all_feats += high_feat[k]
+        elif self.feat_process_type == 'cat':
+            all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
 
         assert all_feats.ndim == 3
 
