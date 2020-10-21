@@ -22,7 +22,7 @@ class Pipeline5(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
                  new_length, attention_layer, attention_dim, dropout,
                  high_feat_model_cfg, low_feat_model_cfg, spatial_sampler_cfg,
-                 actreg_model_cfg, reduce_dim):
+                 actreg_model_cfg, feat_process_type, reduce_dim=None):
         super(Pipeline5, self).__init__(device)
 
         # Turn off cudnn benchmark because of different input size
@@ -37,7 +37,7 @@ class Pipeline5(BaseModel):
         self.attention_layer = attention_layer
         self.attention_dim = attention_dim
         self.dropout = dropout
-        self.reduce_dim = reduce_dim
+        self.feat_process_type = feat_process_type  # [reduce, add]
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
@@ -61,28 +61,42 @@ class Pipeline5(BaseModel):
         name, params = ConfigLoader.load_model_cfg(spatial_sampler_cfg)
         self.spatial_sampler = model_factory.generate(name, **params)
 
-        # FC layers to reduce feature dimension
-        self.fc_reduce_low = nn.Linear(
-            in_features=self.low_feat_model.feature_dim,
-            out_features=reduce_dim,
-        ).to(device)
-        self.fc_reduce_high = nn.Linear(
-            in_features=self.high_feat_model.feature_dim,
-            out_features=reduce_dim,
-        ).to(device)
-        self.fc_reduce_spec = nn.Linear(
-            in_features=self.low_feat_model.feature_dim,
-            out_features=reduce_dim,
-        ).to(device)
-        self.relu = nn.ReLU(inplace=True)
+        # Feature processing functions
+        if self.feat_process_type == 'reduce':
+            # Reduce dimension of each feature
+            self.reduce_dim = reduce_dim
+
+            # FC layers to reduce feature dimension
+            self.fc_reduce_low = nn.Linear(
+                in_features=self.low_feat_model.feature_dim,
+                out_features=reduce_dim,
+            ).to(device)
+            self.fc_reduce_high = nn.Linear(
+                in_features=self.high_feat_model.feature_dim,
+                out_features=reduce_dim,
+            ).to(device)
+            self.fc_reduce_spec = nn.Linear(
+                in_features=self.low_feat_model.feature_dim,
+                out_features=reduce_dim,
+            ).to(device)
+            self.relu = nn.ReLU(inplace=True)
+
+            real_dim = self.fc_reduce_low.out_features + \
+                self.fc_reduce_spec.out_features + \
+                self.fc_reduce_high.out_features*self.spatial_sampler.top_k
+        elif self.feat_process_type == 'add':
+            # Combine the top k features from high rgb by adding,
+            # Make sure the feature dimensions are the same
+            assert self.low_feat_model.feature_dim == self.high_feat_model.feature_dim, \
+                'Feature dimensions must be the same to add'
+            real_dim = self.low_feat_model.feature_dim
+        else:
+            raise NotImplementedError
 
         # Generate action recognition model
         name, params = ConfigLoader.load_model_cfg(actreg_model_cfg)
         assert name in ['ActregGRU2'], \
             'Unsupported model: {}'.format(name)
-        real_dim = self.fc_reduce_low.out_features + \
-            self.fc_reduce_spec.out_features + \
-            self.fc_reduce_high.out_features*self.spatial_sampler.top_k
         params.update({
             'feature_dim': 0,  # Use `real_dim` instead
             'extra_dim': real_dim,
@@ -98,23 +112,28 @@ class Pipeline5(BaseModel):
         _spec = x['Spec']
         batch_size = _rgb_high.shape[0]
 
-        # Extract low resolutions features and attention ----------------------
-        # Extract features
+        # Extract low resolutions features ------------------------------------
         assert self.low_feat_model.modality == ['RGB', 'Spec']
         low_feat, spec_feat = self.low_feat_model({'RGB': _rgb_low, 'Spec': _spec},
                                                   return_concat=False)
 
+        # (B*T, C) --> (B, T, C)
         low_feat = low_feat.view([batch_size,
                                   self.num_segments,
                                   self.low_feat_model.feature_dim])
-        low_feat = self.relu(self.fc_reduce_low(low_feat))
-
         spec_feat = spec_feat.view([batch_size,
                                     self.num_segments,
                                     self.low_feat_model.feature_dim])
-        spec_feat = self.relu(self.fc_reduce_spec(spec_feat))
 
-        # Extract attention
+        # Feature processing
+        if self.feat_process_type == 'reduce':
+            low_feat = self.relu(self.fc_reduce_low(low_feat))
+            spec_feat = self.relu(self.fc_reduce_spec(spec_feat))
+        elif self.feat_process_type == 'add':
+            # Do nothing
+            pass
+
+        # Retrieve attention --------------------------------------------------
         attn = self.low_feat_model.rgb.get_attention_weight(
             l_name=self.attention_layer[0],
             m_name=self.attention_layer[1],
@@ -132,7 +151,7 @@ class Pipeline5(BaseModel):
         _rgb_high = _rgb_high.view((-1, self.num_segments, 3) + _rgb_high.size()[-2:])
         # self._check(_rgb_high, attn, bboxes)
 
-        # Extract regions and feed in high_feat_model -------------------------
+        # Extract regions and feed in high_feat_model
         high_feat = []
         for k in range(self.spatial_sampler.top_k):
             high_feat_k = []
@@ -162,21 +181,26 @@ class Pipeline5(BaseModel):
                 out = self.high_feat_model({'RGB': regions_k_b})
                 high_feat_k.append(out.unsqueeze(dim=0))
 
-            # Concat acrose batch dim and collect
+            # Concat across batch dim and collect
             high_feat_k = torch.cat(high_feat_k, dim=0)
-            high_feat.append(self.relu(self.fc_reduce_high(high_feat_k)))
+            if self.feat_process_type == 'reduce':
+                high_feat.append(self.relu(self.fc_reduce_high(high_feat_k)))
+            elif self.feat_process_type == 'add':
+                high_feat.append(high_feat_k)
 
         assert len(high_feat) == self.spatial_sampler.top_k
         assert high_feat[0].shape[0] == batch_size
         assert high_feat[0].shape[1] == self.num_segments
 
         # Action recognition --------------------------------------------------
-        all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
-        assert all_feats.ndim == 3
+        if self.feat_process_type == 'reduce':
+            all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
+        elif self.feat_process_type == 'add':
+            all_feats = low_feat + spec_feat
+            for k in range(self.spatial_sampler.top_k):
+                all_feats += high_feat[k]
 
-        target_dim = self.reduce_dim*len(self.low_feat_model.modality) + \
-            self.reduce_dim*self.spatial_sampler.top_k
-        assert all_feats.shape[2] == target_dim
+        assert all_feats.ndim == 3
 
         output, hidden = self.actreg_model(all_feats, hidden=None)
 
