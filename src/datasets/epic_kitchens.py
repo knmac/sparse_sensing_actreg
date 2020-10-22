@@ -15,13 +15,16 @@ sys.path.insert(0, os.path.abspath(
 
 from src.datasets.base_dataset import BaseDataset
 from src.datasets.video_record import VideoRecord
+from src.utils.read_3d_data import (read_inliner, read_intrinsic_extrinsic,
+                                    make_rbf_img)
 
 
 class EpicKitchenDataset(BaseDataset):
     def __init__(self, mode, list_file, new_length, modality, image_tmpl,
                  visual_path=None, audio_path=None, fps=29.94,
                  resampling_rate=44000, num_segments=3, transform=None,
-                 use_audio_dict=True, to_shuffle=True):
+                 use_audio_dict=True, to_shuffle=True,
+                 depth_path=None, depth_tmpl=None):
         """Initialize the dataset
 
         Each sample will be organized as a dictionary as follow
@@ -39,11 +42,13 @@ class EpicKitchenDataset(BaseDataset):
                 default full training list from EPIC-KITCHENS.
             new_length: (dict) number of frames per segment in a sample
             modality: (list) list of modalities to load.
-            image_tmpl: (dict) regular expression template to retrieve filename.
+            image_tmpl: (dict) regular expression template to retrieve image filename.
+            depth_tmpl: (dict) regular expression template to retrieve depth filename.
             visual_path: (str) path to the directory containing the frames.
             audio_path: (str) path to the directory containing audio files.
                 If use_audio_dict is True then this must be the path to the
                 pickled dictionary file.
+            depth_path: (str) path to the directory containing the depth.
             fps: frame per seconds
             resampling_rate: (int) resampling rate of audio
             num_segments: (int) num segments per sample (refer to the paper)
@@ -72,6 +77,10 @@ class EpicKitchenDataset(BaseDataset):
             visual_path = os.path.join(root, visual_path)
         self.visual_path = visual_path
 
+        if not os.path.isdir(depth_path):
+            depth_path = os.path.join(root, depth_path)
+        self.depth_path = depth_path
+
         if not os.path.isfile(list_file[mode]):
             list_file[mode] = os.path.join(root, list_file[mode])
         self.list_file = pd.read_pickle(list_file[mode])
@@ -80,6 +89,7 @@ class EpicKitchenDataset(BaseDataset):
         self.new_length = new_length
         self.modality = modality
         self.image_tmpl = image_tmpl
+        self.depth_tmpl = depth_tmpl
         self.transform = transform
         self.resampling_rate = resampling_rate
         self.fps = fps
@@ -196,6 +206,62 @@ class EpicKitchenDataset(BaseDataset):
         elif modality == 'Spec':
             spec = self._extract_sound_feature(record, idx)
             return [Image.fromarray(spec)]
+        elif modality == 'RGBD':
+            return self._load_rgbd(record, idx)
+
+    def _load_rgbd(self, record, idx):
+        """Load RGBD modality. The RGB channels are similar to RGB modality.
+        The depth channel is from depth data
+        """
+        idx_untrimmed = record.start_frame + idx
+
+        # Load RGB
+        rgb = Image.open(os.path.join(self.visual_path,
+                                      record.untrimmed_video_name,
+                                      self.image_tmpl['RGB'].format(idx_untrimmed))
+                         ).convert('RGB')
+
+        # Load D
+        inliers_pth = os.path.join(self.depth_path,
+                                   record.untrimmed_video_name,
+                                   self.depth_tmpl.format(idx_untrimmed-1))
+        if os.path.isfile(inliers_pth):
+            ptid, pt3d, pt2d = read_inliner(inliers_pth)
+
+            frame_info = read_intrinsic_extrinsic(
+                os.path.join(self.depth_path, record.untrimmed_video_name, '0'),
+                startF=idx_untrimmed-1, stopF=idx_untrimmed-1,
+            ).VideoInfo[idx_untrimmed-1]
+
+            cam_center = frame_info.camCenter
+            principle_ray_dir = frame_info.principleRayDir
+
+            rbf_opts = {'function': 'linear', 'epsilon': 2.0}
+            depth = make_rbf_img(ptid, pt3d, pt2d, cam_center, principle_ray_dir,
+                                 height=1080, width=1920,
+                                 new_h=rgb.height, new_w=rgb.width,
+                                 rbf_opts=rbf_opts)
+
+            # TODO: Normalize depth globally
+            depth -= depth.min()
+            depth = (depth / depth.max() * 255).astype(np.uint8)
+            depth = np.abs(255 - depth)  # Reverse
+        else:
+            depth = np.zeros(rgb.size, dtype=np.uint8) + 255
+
+        # import matplotlib.pyplot as plt
+        # fig, axes = plt.subplots(2, 1)
+        # axes[0].imshow(np.array(rgb))
+        # axes[1].imshow(np.transpose(depth, [1, 0]))
+        # plt.show()
+
+        # Combine RGB+D, take advantage of RGBA format
+        try:
+            rgba = np.dstack([np.array(rgb), depth])
+        except ValueError:
+            rgba = np.dstack([np.array(rgb), np.transpose(depth, [1, 0])])
+        rgba = [Image.fromarray(rgba)]
+        return rgba
 
     def _sample_indices(self, record, modality):
         """
@@ -269,7 +335,8 @@ class EpicVideoRecord(VideoRecord):
     def num_frames(self):
         return {'RGB': self.end_frame - self.start_frame,
                 'Flow': (self.end_frame - self.start_frame) / 2,
-                'Spec': self.end_frame - self.start_frame}
+                'Spec': self.end_frame - self.start_frame,
+                'RGBD': self.end_frame - self.start_frame}
 
     @property
     def label(self):

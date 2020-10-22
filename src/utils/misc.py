@@ -163,6 +163,10 @@ class MiscUtils:
             augmentation['RGBDiff'] = torchvision.transforms.Compose(
                 [GroupMultiScaleCrop(input_size['RGBDiff'], [1, .875, .75]),
                  GroupRandomHorizontalFlip(is_flow=False)])
+        if 'RGBD' in modality:
+            augmentation['RGBD'] = torchvision.transforms.Compose(
+                [GroupMultiScaleCrop(input_size['RGBD'], [1, .875, .75, .66]),
+                 GroupRandomHorizontalFlip(is_flow=False)])
         return augmentation
 
     @staticmethod

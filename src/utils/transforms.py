@@ -262,7 +262,7 @@ class Stack(object):
     def __call__(self, img_group):
         if img_group[0].mode == 'L' or img_group[0].mode == 'F':
             return np.concatenate([np.expand_dims(x, 2) for x in img_group], axis=2)
-        elif img_group[0].mode == 'RGB':
+        elif img_group[0].mode == 'RGB' or img_group[0].mode == 'RGBA':
             if self.roll:
                 return np.concatenate([np.array(x)[:, :, ::-1] for x in img_group], axis=2)
             else:

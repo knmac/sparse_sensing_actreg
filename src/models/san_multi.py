@@ -30,7 +30,7 @@ class SANMulti(BaseModel):
         self.new_length = OrderedDict()
         if new_length is None:
             for m in self.modality:
-                self.new_length[m] = 1 if (m == "RGB" or m == "Spec") else 5
+                self.new_length[m] = 1 if (m in ['RGB', 'Spec', 'RGBD']) else 5
         else:
             self.new_length = new_length
         self.new_input_size = new_input_size
@@ -136,6 +136,8 @@ class SANMulti(BaseModel):
                 self.input_mean[m] = self.input_mean[m] * (1 + self.new_length[m])
             elif m == 'RGB':
                 self.input_mean[m] = [104, 117, 128]
+            elif m == 'RGBD':
+                self.input_mean[m] = [104, 117, 128, 0]
 
             # Load pretrained weights
             if os.path.isfile(self.san_pretrained_weights[m]):
@@ -229,6 +231,8 @@ class SANMulti(BaseModel):
                 channel = 2
             elif (m == 'Spec'):
                 channel = 1
+            elif (m == 'RGBD'):
+                channel = 4
             sample_len = channel * self.new_length[m]
 
             base_model = getattr(self, m.lower())
