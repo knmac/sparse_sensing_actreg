@@ -57,7 +57,7 @@ def main():
                           anti_aliasing=True).astype(np.uint8)
 
     # Read corpus
-    corpus_info, vcorpus_cid_lcid_lfid = read_corpus(data_pth)
+    # corpus_info, vcorpus_cid_lcid_lfid = read_corpus(data_pth)
 
     # Read camera parameters
     vinfo = read_intrinsic_extrinsic(data_pth)
