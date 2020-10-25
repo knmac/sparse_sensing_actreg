@@ -30,6 +30,8 @@ from src.models.pipeline4 import Pipeline4
 from src.models.actreg_gru2 import ActregGRU2
 from src.models.pipeline5 import Pipeline5
 from src.models.space_sampler_thres import SpatialSamplerThres
+from src.models.pipeline6 import Pipeline6
+from src.models.time_sampler_thres import TemporalSamplerThres
 
 import src.utils.logging as logging
 
@@ -110,6 +112,9 @@ class ModelFactory(BaseFactory):
             'ActregGRU2': ActregGRU2,
             'Pipeline5': Pipeline5,
             'SpatialSamplerThres': SpatialSamplerThres,
+            # ---
+            'Pipeline6': Pipeline6,
+            'TemporalSamplerThres': TemporalSamplerThres,
         }
 
     def generate(self, model_name, **kwargs):

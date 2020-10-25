@@ -12,7 +12,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from train_val import train_val, validate
+from train_val import train_val
+from test_pipeline import test
 from src.utils.load_cfg import ConfigLoader
 from src.factories import ModelFactory
 from src.factories import DatasetFactory
@@ -219,8 +220,7 @@ def main(args):
         test_loader = DataLoader(test_dataset, shuffle=False, **loader_params)
 
         # Test routine
-        model.load_model(args.pretrained_model_path)
-        validate(model, device, criterion, test_loader)
+        test(model, device, test_loader, args)
     return 0
 
 
