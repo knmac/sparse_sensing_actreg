@@ -25,6 +25,9 @@ class Pipeline6(BaseModel):
                  feat_process_type):
         super(Pipeline6, self).__init__(device)
 
+        # Turn off cudnn benchmark because of different input size
+        torch.backends.cudnn.benchmark = False
+
         # Only support layer3_0 for now
         # Affecting the implementation of 1st and 2nd half splitting
         assert attention_layer == ['layer3', '0']

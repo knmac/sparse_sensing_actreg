@@ -43,7 +43,7 @@ class TemporalSamplerThres():
             return to_skip, 0.0
 
         # Compute ssim score
-        ssim = -self.belief_criterion(attn, old_hallu)
+        ssim = -self.belief_criterion(attn, old_hallu).item()
 
         # Match attention and hallucination
         # ssim in [-1, 0], lower ssim means more accurate
