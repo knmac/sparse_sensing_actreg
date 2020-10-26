@@ -39,6 +39,7 @@ def main(args):
     # Find argmax wrt data_prec_top1
     log_type = 'data_prec_top1_validation'
     top1 = get_scalars(args.log_dir, log_type)[0]
+    print('n_epochs =', len(top1))
     argmax = np.argmax([item.value for item in top1])
 
     # Print all data at argmax
