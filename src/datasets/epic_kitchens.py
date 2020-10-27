@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from numpy.random import randint
 from PIL import Image
+from epic_kitchens.meta import training_labels
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -81,9 +82,17 @@ class EpicKitchenDataset(BaseDataset):
             depth_path = os.path.join(root, depth_path)
         self.depth_path = depth_path
 
-        if not os.path.isfile(list_file[mode]):
-            list_file[mode] = os.path.join(root, list_file[mode])
-        self.list_file = pd.read_pickle(list_file[mode])
+        if list_file[mode] is not None:
+            # Use the given lists
+            if not os.path.isfile(list_file[mode]):
+                list_file[mode] = os.path.join(root, list_file[mode])
+            self.list_file = pd.read_pickle(list_file[mode])
+        else:
+            # Use the full list for training and there's no validation
+            if mode == 'train':
+                self.list_file = training_labels()
+            elif mode == 'val':
+                self.list_file = None
 
         self.num_segments = num_segments
         self.new_length = new_length
@@ -142,7 +151,11 @@ class EpicKitchenDataset(BaseDataset):
 
     def _parse_list(self):
         """Parse from pandas data frame to list of EpicVideoRecord objects"""
-        self.video_list = [EpicVideoRecord(tup) for tup in self.list_file.iterrows()]
+        if self.list_file is not None:
+            self.video_list = [EpicVideoRecord(tup) for tup in self.list_file.iterrows()]
+        else:
+            self.video_list = []
+
 
     def _log_specgram(self, audio, window_size=10, step_size=5, eps=1e-6):
         nperseg = int(round(window_size * self.resampling_rate / 1e3))

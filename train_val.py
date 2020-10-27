@@ -64,26 +64,33 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
             epoch, run_iter, train_params)
 
         # Validation phase
-        # TODO: check the case when there's no validation set
-        logger.info('Testing...')
         if ((epoch + 1) % train_params['eval_freq'] == 0) or \
                 ((epoch + 1) == train_params['n_epochs']):
-            val_metrics = validate(model, device, criterion, val_loader,
-                                   sum_writer, run_iter+len(train_loader))
+            if len(val_loader) != 0:
+                # Run validation if val_loader is valid
+                logger.info('Testing...')
+                val_metrics = validate(model, device, criterion, val_loader,
+                                       sum_writer, run_iter+len(train_loader))
 
-            # Remember best value of the metrics and save checkpoint
-            current_val = val_metrics[args.best_metrics]
-            is_best = False
-            if args.best_fn == 'max':
-                if current_val > best_val:
-                    best_val = current_val
-                    is_best = True
-            elif args.best_fn == 'min':
-                if current_val < best_val:
-                    best_val = current_val
-                    is_best = True
+                # Remember best value of the metrics and save checkpoint
+                current_val = val_metrics[args.best_metrics]
+                is_best = False
+                if args.best_fn == 'max':
+                    if current_val > best_val:
+                        best_val = current_val
+                        is_best = True
+                elif args.best_fn == 'min':
+                    if current_val < best_val:
+                        best_val = current_val
+                        is_best = True
+                else:
+                    NotImplementedError
             else:
-                NotImplementedError
+                # Skip validation and keep saving the model
+                # Don't update best_val --> always 0
+                logger.info('Skip testing and save latest model as best...')
+                is_best = True
+
             MiscUtils.save_progress(model, optimizer, args.savedir, best_val,
                                     epoch, is_best)
 
