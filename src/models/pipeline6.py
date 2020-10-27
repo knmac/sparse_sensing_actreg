@@ -51,6 +51,7 @@ class Pipeline6(BaseModel):
             'modality': self.modality,
         })
         self.low_feat_model = model_factory.generate(name, device=device, **params)
+        self.low_feat_model.to(device)
 
         # Generate feature extraction models for high resolutions
         name, params = ConfigLoader.load_model_cfg(high_feat_model_cfg)
@@ -59,6 +60,7 @@ class Pipeline6(BaseModel):
             'modality': ['RGB'],  # Remove spec because low_model already has it
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
+        self.high_feat_model.to(device)
 
         # Generate temporal sampler
         name, params = ConfigLoader.load_model_cfg(temporal_sampler_cfg)
@@ -92,6 +94,7 @@ class Pipeline6(BaseModel):
         })
         self.hallu_model = model_factory.generate(name, device=device, **params)
         self.hallu_model.load_model(hallu_pretrained_weights)
+        self.hallu_model.to(device)
 
         # Generate action recognition model
         name, params = ConfigLoader.load_model_cfg(actreg_model_cfg)
@@ -105,6 +108,7 @@ class Pipeline6(BaseModel):
         })
         self.actreg_model = model_factory.generate(name, device=device, **params)
         self.actreg_model.load_model(actreg_pretrained_weights)
+        self.actreg_model.to(device)
 
     def forward(self, x):
         """Forwad a sequence of frame

@@ -16,14 +16,15 @@ def test(model, device, test_loader, args, test_mode='by_segment'):
     assert type(model).__name__ == 'Pipeline6'
 
     # Switch model to eval mode
-    model = torch.nn.DataParallel(model, device_ids=args.gpus).to(device)
     model.eval()
 
     # Test
     with torch.no_grad():
         if test_mode == 'by_segment':
+            logger.info('Testing by segment...')
             results = _test_by_segment(model, device, test_loader)
         elif test_mode == 'by_vid':
+            logger.info('Testing by vid...')
             results = _test_by_vid()
         else:
             raise NotImplementedError
@@ -59,7 +60,7 @@ def _test_by_segment(model, device, test_loader):
         all_output.append(output)
 
         # Compute metrics
-        batch_size = sample[model.module.modality[0]].size(0)
+        batch_size = sample[model.modality[0]].size(0)
         verb_output = output[0]
         noun_output = output[1]
 
