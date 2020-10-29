@@ -110,7 +110,7 @@ class Pipeline6(BaseModel):
         self.actreg_model.load_model(actreg_pretrained_weights)
         self.actreg_model.to(device)
 
-    def forward(self, x):
+    def forward(self, x, avg=True):
         """Forwad a sequence of frame
         """
         rgb_high = x['RGB']
@@ -154,7 +154,11 @@ class Pipeline6(BaseModel):
         # Prepare outputs
         all_pred_verb = torch.cat(all_pred_verb, dim=1)
         all_pred_noun = torch.cat(all_pred_noun, dim=1)
-        output = (all_pred_verb.mean(dim=1), all_pred_noun.mean(dim=1))
+        if avg:
+            output = (all_pred_verb.mean(dim=1), all_pred_noun.mean(dim=1))
+        else:
+            output = (all_pred_verb, all_pred_noun)
+
         extra_output = {
             'skip': all_skip,
             'time': all_time,
