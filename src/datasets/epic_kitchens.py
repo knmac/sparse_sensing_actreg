@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from numpy.random import randint
 from PIL import Image
-from epic_kitchens.meta import training_labels
+from epic_kitchens.meta import training_labels, test_timestamps
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -25,7 +25,7 @@ class EpicKitchenDataset(BaseDataset):
                  visual_path=None, audio_path=None, fps=29.94,
                  resampling_rate=44000, num_segments=3, transform=None,
                  use_audio_dict=True, to_shuffle=True,
-                 depth_path=None, depth_tmpl=None):
+                 depth_path=None, depth_tmpl=None, full_test_split=None):
         """Initialize the dataset
 
         Each sample will be organized as a dictionary as follow
@@ -58,6 +58,9 @@ class EpicKitchenDataset(BaseDataset):
             use_audio_dict: (bool) whether the audio_path is pointed to a
                 dictionary or not.
             to_shuffle: (bool) whether to shuffle non-rgb modalities in training
+            full_test_split: (str) only used when list_file['test'] is None.
+                Determine which split of epic kitchen test to load.
+                Choices: ['seen', 'unseen', 'all']
         """
         super().__init__(mode)
         self.name = 'epic_kitchens'
@@ -93,6 +96,8 @@ class EpicKitchenDataset(BaseDataset):
                 self.list_file = training_labels()
             elif mode == 'val':
                 self.list_file = None
+            elif mode == 'test':
+                self.list_file = test_timestamps(full_test_split)
 
         self.num_segments = num_segments
         self.new_length = new_length
@@ -155,7 +160,6 @@ class EpicKitchenDataset(BaseDataset):
             self.video_list = [EpicVideoRecord(tup) for tup in self.list_file.iterrows()]
         else:
             self.video_list = []
-
 
     def _log_specgram(self, audio, window_size=10, step_size=5, eps=1e-6):
         nperseg = int(round(window_size * self.resampling_rate / 1e3))

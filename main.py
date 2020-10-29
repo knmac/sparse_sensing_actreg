@@ -215,12 +215,29 @@ def main(args):
         train_val(model, device, criterion, train_loader, val_loader, train_params, args)
     else:
         # Create data loader for testing
-        test_dataset = dataset_factory.generate(
-            dataset_name, mode='test', transform=val_transform, **dataset_params)
-        test_loader = DataLoader(test_dataset, shuffle=False, **loader_params)
+        if dataset_params['list_file']['test'] is not None:
+            # Use the given list
+            test_dataset = dataset_factory.generate(
+                dataset_name, mode='test', transform=val_transform, **dataset_params)
+            test_loader = DataLoader(test_dataset, shuffle=False, **loader_params)
+            has_groundtruth = True
+        else:
+            # Use the full test list without groundtruth
+            test_dataset_s1 = dataset_factory.generate(
+                dataset_name, mode='test', transform=val_transform,
+                full_test_split='seen', **dataset_params)
+            test_loader_s1 = DataLoader(test_dataset_s1, shuffle=False, **loader_params)
+
+            test_dataset_s2 = dataset_factory.generate(
+                dataset_name, mode='test', transform=val_transform,
+                full_test_split='unseen', **dataset_params)
+            test_loader_s2 = DataLoader(test_dataset_s2, shuffle=False, **loader_params)
+
+            test_loader = {'seen': test_loader_s1, 'unseen': test_loader_s2}
+            has_groundtruth = False
 
         # Test routine
-        test(model, device, test_loader, args)
+        test(model, device, test_loader, args, has_groundtruth)
     return 0
 
 

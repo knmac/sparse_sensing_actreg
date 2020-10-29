@@ -1,8 +1,10 @@
-"""Run the full pipeline with both time and space sampler
+"""Run the test on full pipeline with both time and space sampler
 """
 import os
+import json
 
 import torch
+from tqdm import tqdm
 
 import src.utils.logging as logging
 from src.utils.metrics import AverageMeter, accuracy, multitask_accuracy
@@ -10,31 +12,33 @@ from src.utils.metrics import AverageMeter, accuracy, multitask_accuracy
 logger = logging.get_logger(__name__)
 
 
-def test(model, device, test_loader, args, test_mode='by_segment'):
-    assert test_loader.dataset.name == 'epic_kitchens', \
-        'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
-    assert type(model).__name__ == 'Pipeline6'
-
+def test(model, device, test_loader, args, has_groundtruth):
     # Switch model to eval mode
     model.eval()
 
     # Test
     with torch.no_grad():
-        if test_mode == 'by_segment':
-            logger.info('Testing by segment...')
-            results = _test_by_segment(model, device, test_loader)
-        elif test_mode == 'by_vid':
-            logger.info('Testing by vid...')
-            results = _test_by_vid()
+        if has_groundtruth:
+            logger.info('Testing on val...')
+            results = test_with_gt(model, device, test_loader)
+            torch.save(results, os.path.join(args.logdir, 'results'))
         else:
-            raise NotImplementedError
-    torch.save(results, os.path.join(args.logdir, 'results'))
+            for split, loader in test_loader.items():
+                logger.info('Testing on split: {}...'.format(split))
+                results, extra_results = test_without_gt(model, device, loader)
+
+                with open(os.path.join(args.logdir, split+'.json'), 'w') as outfile:
+                    json.dump(results, outfile)
+                torch.save(extra_results, os.path.join(args.logdir, split+'.extra'))
 
 
-def _test_by_segment(model, device, test_loader):
-    """Test each segment as a whole (each video contains multiple segments)
-    Do not call directly. Use test() instead
+def test_with_gt(model, device, test_loader):
+    """Test on the validation set with groundtruth labels
     """
+    assert type(model).__name__ == 'Pipeline6'
+    assert test_loader.dataset.name == 'epic_kitchens', \
+        'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
+
     # Prepare metrics
     top1 = AverageMeter()
     top5 = AverageMeter()
@@ -42,9 +46,7 @@ def _test_by_segment(model, device, test_loader):
     verb_top5 = AverageMeter()
     noun_top1 = AverageMeter()
     noun_top5 = AverageMeter()
-    all_skip = []
-    all_time = []
-    all_ssim = []
+    all_skip, all_time, all_ssim = [], [], []
     all_output = []
 
     # Test
@@ -91,12 +93,17 @@ def _test_by_segment(model, device, test_loader):
     msg += '  Prec@1 {:.3f}, Prec@5 {:.3f}\n'.format(top1.avg, top5.avg)
     msg += '  Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(verb_top1.avg, verb_top5.avg)
     msg += '  Noun Prec@1 {:.3f}, Noun Prec@5 {:.3f}'.format(noun_top1.avg, noun_top5.avg)
+    msg += '  Total frames {}, Skipped frames {}'.format(len(all_skip), sum(all_skip))
     logger.info(msg)
 
     # Collect metrics
-    test_metrics = {'test_acc': top1.avg,
-                    'test_verb_acc': verb_top1.avg,
-                    'test_noun_acc': noun_top1.avg}
+    test_metrics = {'top1': top1.avg,
+                    'top5': top5.avg,
+                    'verb_top1': verb_top1.avg,
+                    'verb_top5': verb_top5.avg,
+                    'noun_top1': noun_top1.avg,
+                    'noun_top5': noun_top1.avg,
+                    }
     results = {
         'test_metrics': test_metrics,
         'all_output': all_output,
@@ -107,5 +114,52 @@ def _test_by_segment(model, device, test_loader):
     return results
 
 
-def _test_by_vid():
-    raise NotImplementedError
+def test_without_gt(model, device, test_loader):
+    """Test on the test set without groundtruth labels
+    """
+    assert type(model).__name__ == 'Pipeline6'
+    assert test_loader.dataset.name == 'epic_kitchens', \
+        'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
+
+    # Prepare for json output
+    uid_lst = test_loader.dataset.list_file.index.values
+    results = {
+        "version": "0.1",
+        "challenge": "action_recognition",
+        "results": {},
+    }
+
+    # Test
+    all_skip, all_time, all_ssim = [], [], []
+    for i, (sample, _) in tqdm(enumerate(test_loader), total=len(test_loader)):
+        # Inference
+        sample = {k: v.to(device) for k, v in sample.items()}
+        output, extra_output = model(sample)
+        assert output[0].shape[0] == 1, 'Only support batch_size=1'
+
+        verb_output = output[0][0].cpu().numpy()
+        noun_output = output[1][0].cpu().numpy()
+
+        # Collect prediction
+        uid = str(uid_lst[i])
+        results["results"][uid] = {
+            'verb': {str(k): float(verb_output[k]) for k in range(len(verb_output))},
+            'noun': {str(k): float(noun_output[k]) for k in range(len(noun_output))},
+        }
+
+        # Collect extra results
+        all_skip += extra_output['skip']
+        all_time += extra_output['time']
+        all_ssim += extra_output['ssim']
+
+    # Print out message
+    msg = '  Total frames {}, Skipped frames {}'.format(len(all_skip), sum(all_skip))
+    logger.info(msg)
+
+    extra_results = {
+        'all_skip': all_skip,
+        'all_ssim': all_ssim,
+        'all_time': all_time,
+    }
+
+    return results, extra_results
