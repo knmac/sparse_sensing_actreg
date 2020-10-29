@@ -14,7 +14,7 @@ class SpatialSamplerThres():
             mask = alpha * attn.mean() + beta * attn.std()
 
         Args:
-            top_k: (int) number of top regions to sample
+            top_k: (int) number of top regions to sample. If 0 -> not used
             min_b_size: (int) minimum size of each bbox to sample
             max_b_size: (int) maximum size of each bbox to sample
             alpha: (float) parameter to threshold the attention
@@ -46,8 +46,12 @@ class SpatialSamplerThres():
 
         Return:
             results: tensor of shape [B, top_k, 4]. The last dimension defines
-                the bounding boxes as (top, left, bottom, right)
+                the bounding boxes as (top, left, bottom, right).
+                None if top_k = 0
         """
+        if self.top_k == 0:
+            return None
+
         assert attn.shape[-1] == attn.shape[-2]
         attn_size = attn.shape[-1]
         batch_size = attn.shape[0]
@@ -101,8 +105,12 @@ class SpatialSamplerThres():
 
         Return:
             results: tensor of shape [B, T, top_k, 4]. The last dimension defines
-                the bounding boxes as (top, left, bottom, right)
+                the bounding boxes as (top, left, bottom, right).
+                None if top_k = 0
         """
+        if self.top_k == 0:
+            return None
+
         if avg_across_time is True:
             assert reorder is True, \
                 '`reorder` must be True to use `avg_across_time`'
