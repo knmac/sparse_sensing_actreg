@@ -98,14 +98,24 @@ class Pipeline6(BaseModel):
 
         # Generate action recognition model
         name, params = ConfigLoader.load_model_cfg(actreg_model_cfg)
-        assert name in ['ActregGRU2']
-        params.update({
-            'feature_dim': 0,  # Use `real_dim` instead
-            'extra_dim': real_dim,
-            'modality': self.modality,
-            'num_class': self.num_class,
-            'dropout': self.dropout,
-        })
+        assert name in ['ActregGRU2', 'ActregFc'], \
+            'Unsupported model: {}'.format(name)
+        if name == 'ActregGRU2':
+            params.update({
+                'feature_dim': 0,  # Use `real_dim` instead
+                'extra_dim': real_dim,
+                'modality': self.modality,
+                'num_class': self.num_class,
+                'dropout': self.dropout,
+            })
+        elif name == 'ActregFc':
+            params.update({
+                'feature_dim': real_dim,
+                'modality': self.modality,
+                'num_class': self.num_class,
+                'dropout': self.dropout,
+                'num_segments': self.num_segments,
+            })
         self.actreg_model = model_factory.generate(name, device=device, **params)
         self.actreg_model.load_model(actreg_pretrained_weights)
         self.actreg_model.to(device)
