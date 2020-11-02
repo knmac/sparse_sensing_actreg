@@ -21,7 +21,9 @@ def parse_args():
 
 def get_scalars(log_dir, log_type):
     event_fname = glob.glob(os.path.join(log_dir, log_type, 'event*'))
-    assert len(event_fname) == 1
+    if len(event_fname) != 1:
+        print('  {} --> len(event_fname)=={}'.format(log_type, len(event_fname)))
+        return None
 
     ttf_guidance = {
         event_accumulator.SCALARS: 0,
@@ -55,7 +57,10 @@ def main(args):
         'data_noun_prec_top5_validation',
     ]
     for log_type in log_types:
-        data = get_scalars(args.log_dir, log_type)[0]
+        data = get_scalars(args.log_dir, log_type)
+        if data is None:
+            continue
+        data = data[0]
         print('{} --> {:.03f}'.format(log_type, data[argmax].value))
     return 0
 
