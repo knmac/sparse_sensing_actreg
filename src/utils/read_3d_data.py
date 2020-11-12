@@ -589,9 +589,9 @@ def read_inliner(fname):
     return ptid, pt3d, pt2d
 
 
-def make_rbf_img(ptid, pt3d, pt2d, cam_center, principle_ray_dir,
-                 height, width, new_h, new_w, rbf_opts):
-    """Create RBF interpolation image from sparse 2D points
+def project_depth(ptid, pt3d, pt2d, cam_center, principle_ray_dir,
+                  height, width, new_h, new_w):
+    """Project depth from world plane to camera plane
 
     Args:
         ptid: (list) list of point id
@@ -603,16 +603,18 @@ def make_rbf_img(ptid, pt3d, pt2d, cam_center, principle_ray_dir,
         width: original width of the image (captured by camera)
         new_h: new height to resize
         new_w: new width to resize
-        rbf_opts: arguments for RBF interpolation
 
     Return:
         zz: interpolation image
+        projection: dictionary of mappings from point_id to (u, v) projection
+            location, wrt to (x-axis, y-axis)
     """
     scale_h = height / new_h
     scale_w = width / new_w
 
     # Collect and rescale 2d points
     img = np.zeros([new_h, new_w])
+    projection = {}
     for k in ptid:
         u, v = np.round(pt2d[k] / [scale_w, scale_h]).astype(int)
         if u < 0 or u >= new_w or v < 0 or v >= new_h:
@@ -621,16 +623,36 @@ def make_rbf_img(ptid, pt3d, pt2d, cam_center, principle_ray_dir,
         cam2point = pt3d[k] - cam_center
         depth = np.dot(cam2point, principle_ray_dir)
         img[v, u] = depth
+        projection[k] = (u, v)
+    return img, projection
 
+
+def rbf_interpolate(img, rbf_opts):
+    """Create RBF interpolation image from sparse 2D points
+
+    Args:
+        img: 2D image of sparse points
+
+    Return:
+        zz: interpolation image
+    """
     # Get the unique points
     nz_idx = np.where(img > 0)
     y, x = nz_idx
     z = img[nz_idx]
-    # plt.scatter(x, y, 50, z)
 
     # Interpolation
     rbf = Rbf(x, y, z, **rbf_opts)
-    yy, xx = np.meshgrid(np.arange(new_h), np.arange(new_w))
-    zz = rbf(xx, yy)
-    # return (x, y, z), (xx, yy, zz)
+    yy, xx = np.meshgrid(np.arange(img.shape[0]), np.arange(img.shape[1]))
+    zz = rbf(xx, yy).transpose([1, 0]).astype(np.float32)
+
+    # Check the results
+    # import matplotlib.pyplot as plt
+    # fig, axes = plt.subplots(2, 2)
+    # axes[0, 0].imshow(zz)
+    # axes[1, 0].imshow(rbf(yy, xx).transpose([1, 0]))
+    # axes[0, 1].imshow(img)
+    # axes[1, 1].scatter(x, y, 50, z)
+    # axes[1, 1].set_ylim(axes[1, 1].get_ylim()[::-1])
+    # plt.show()
     return zz

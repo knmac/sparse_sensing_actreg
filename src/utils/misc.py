@@ -16,6 +16,7 @@ from src.utils.transforms import (
     GroupCenterCrop, GroupNormalize, IdentityTransform,
     Stack, ToTorchFormatTensor
 )
+from src.utils import transforms_rgbds
 import src.utils.logging as logging
 
 logger = logging.get_logger(__name__)
@@ -163,10 +164,11 @@ class MiscUtils:
             augmentation['RGBDiff'] = torchvision.transforms.Compose(
                 [GroupMultiScaleCrop(input_size['RGBDiff'], [1, .875, .75]),
                  GroupRandomHorizontalFlip(is_flow=False)])
-        if 'RGBD' in modality:
-            augmentation['RGBD'] = torchvision.transforms.Compose(
-                [GroupMultiScaleCrop(input_size['RGBD'], [1, .875, .75, .66]),
-                 GroupRandomHorizontalFlip(is_flow=False)])
+        if 'RGBDS' in modality:
+            augmentation['RGBDS'] = torchvision.transforms.Compose(
+                [transforms_rgbds.GroupMultiScaleCrop(input_size['RGBDS'],
+                                                      [1, .875, .75, .66]),
+                 transforms_rgbds.GroupRandomHorizontalFlip()])
         return augmentation
 
     @staticmethod
@@ -208,7 +210,7 @@ class MiscUtils:
         train_transform = {}
         val_transform = {}
         for m in modality:
-            if (m != 'Spec'):
+            if (m in ['RGB', 'Flow', 'RGBDiff']):
                 # Prepare dictionaries containing image name templates for each modality
                 if m in ['RGB', 'RGBDiff']:
                     image_tmpl[m] = "img_{:010d}.jpg"
@@ -231,7 +233,7 @@ class MiscUtils:
                     ToTorchFormatTensor(div=(arch != 'BNInception')),
                     normalize[m],
                 ])
-            else:
+            elif (m == 'Spec'):
                 # Prepare train/val dictionaries containing the transformations
                 # (augmentation+normalization)
                 # for each modality
@@ -243,5 +245,20 @@ class MiscUtils:
                 val_transform[m] = torchvision.transforms.Compose([
                     Stack(roll=(arch == 'BNInception')),
                     ToTorchFormatTensor(div=False),
+                ])
+            elif (m == 'RGBDS'):
+                train_transform[m] = torchvision.transforms.Compose([
+                    train_augmentation[m],
+                    transforms_rgbds.Stack(roll=(arch == 'BNInception')),
+                    transforms_rgbds.ToTorchFormatTensor(div=(arch != 'BNInception')),
+                    normalize[m],
+                ])
+
+                val_transform[m] = torchvision.transforms.Compose([
+                    transforms_rgbds.GroupScale(int(scale_size[m])),
+                    transforms_rgbds.GroupCenterCrop(crop_size[m]),
+                    transforms_rgbds.Stack(roll=(arch == 'BNInception')),
+                    transforms_rgbds.ToTorchFormatTensor(div=(arch != 'BNInception')),
+                    normalize[m],
                 ])
         return train_transform, val_transform

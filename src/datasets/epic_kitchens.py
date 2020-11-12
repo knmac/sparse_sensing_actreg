@@ -5,6 +5,7 @@ import pickle
 from pathlib import Path
 
 import librosa
+import torch
 import numpy as np
 import pandas as pd
 from numpy.random import randint
@@ -17,7 +18,7 @@ sys.path.insert(0, os.path.abspath(
 from src.datasets.base_dataset import BaseDataset
 from src.datasets.video_record import VideoRecord
 from src.utils.read_3d_data import (read_inliner, read_intrinsic_extrinsic,
-                                    make_rbf_img)
+                                    project_depth, rbf_interpolate)
 
 
 class EpicKitchenDataset(BaseDataset):
@@ -25,7 +26,8 @@ class EpicKitchenDataset(BaseDataset):
                  visual_path=None, audio_path=None, fps=29.94,
                  resampling_rate=44000, num_segments=3, transform=None,
                  use_audio_dict=True, to_shuffle=True,
-                 depth_path=None, depth_tmpl=None, full_test_split=None):
+                 depth_path=None, depth_tmpl=None,
+                 semantic_path=None, semantic_tmpl=None, full_test_split=None):
         """Initialize the dataset
 
         Each sample will be organized as a dictionary as follow
@@ -85,6 +87,10 @@ class EpicKitchenDataset(BaseDataset):
             depth_path = os.path.join(root, depth_path)
         self.depth_path = depth_path
 
+        if not os.path.isdir(semantic_path):
+            semantic_path = os.path.join(root, semantic_path)
+        self.semantic_path = semantic_path
+
         if list_file[mode] is not None:
             # Use the given lists
             if not os.path.isfile(list_file[mode]):
@@ -104,6 +110,7 @@ class EpicKitchenDataset(BaseDataset):
         self.modality = modality
         self.image_tmpl = image_tmpl
         self.depth_tmpl = depth_tmpl
+        self.semantic_tmpl = semantic_tmpl
         self.transform = transform
         self.resampling_rate = resampling_rate
         self.fps = fps
@@ -223,25 +230,46 @@ class EpicKitchenDataset(BaseDataset):
         elif modality == 'Spec':
             spec = self._extract_sound_feature(record, idx)
             return [Image.fromarray(spec)]
-        elif modality == 'RGBD':
-            return self._load_rgbd(record, idx)
+        elif modality == 'RGBDS':
+            return self._load_rgbds(record, idx)
 
-    def _load_rgbd(self, record, idx):
-        """Load RGBD modality. The RGB channels are similar to RGB modality.
-        The depth channel is from depth data
+    def _load_rgbds(self, record, idx):
+        """Load data with 5 channels
+
+        The first 3 channels are similar to RGB modality
+        The 4th channel is the depth wrt to the current frame
+        The 5th channel is the semantic label from majority voting
+
+        The depth_path should have this format
+            [depth]/
+            └── [video_name]/
+                └── 0/
+                    ├── CamPose_0000.txt
+                    ├── Intrinsic_0000.txt
+                    ├── Points.txt
+                    └── PnPf/
+                        ├── Inliers_[fid].txt
+                        └── ...
+
+        The semantic_path should have this format
+            [semantic]/
+            ├── semantic_[video_name].data
+            └── ...
         """
         idx_untrimmed = record.start_frame + idx
 
-        # Load RGB
+        # Three first 3 channels: RGB -----------------------------------------
         rgb = Image.open(os.path.join(self.visual_path,
                                       record.untrimmed_video_name,
                                       self.image_tmpl['RGB'].format(idx_untrimmed))
                          ).convert('RGB')
+        rgb = np.array(rgb)
 
-        # Load D
+        # The 4th channel: depth ----------------------------------------------
         inliers_pth = os.path.join(self.depth_path,
                                    record.untrimmed_video_name,
                                    self.depth_tmpl.format(idx_untrimmed-1))
+        depth = np.zeros(rgb.shape[:2], dtype=np.float32)
         if os.path.isfile(inliers_pth):
             ptid, pt3d, pt2d = read_inliner(inliers_pth)
 
@@ -253,32 +281,38 @@ class EpicKitchenDataset(BaseDataset):
             cam_center = frame_info.camCenter
             principle_ray_dir = frame_info.principleRayDir
 
+            # Normalize depth to the scale in milimeters
+            normalize_point_pth = os.path.join(
+                self.depth_path, record.untrimmed_video_name, '0', 'Points.txt')
+            assert os.path.isfile(normalize_point_pth)
+            content = open(normalize_point_pth).read().splitlines()
+            sfm_dist, real_dist = content[-1].split(' ')
+            sfm_dist, real_dist = float(sfm_dist), float(real_dist)
+            depth = depth / sfm_dist * real_dist
+
+            # Find depth wrt to camera coordinates
             rbf_opts = {'function': 'linear', 'epsilon': 2.0}
-            depth = make_rbf_img(ptid, pt3d, pt2d, cam_center, principle_ray_dir,
-                                 height=1080, width=1920,
-                                 new_h=rgb.height, new_w=rgb.width,
-                                 rbf_opts=rbf_opts)
+            depth, projection = project_depth(
+                ptid, pt3d, pt2d, cam_center, principle_ray_dir,
+                height=1080, width=1920,
+                new_h=rgb.shape[0], new_w=rgb.shape[1])
+            depth = rbf_interpolate(depth, rbf_opts=rbf_opts)
 
-            # TODO: Normalize depth globally
-            depth -= depth.min()
-            depth = (depth / depth.max() * 255).astype(np.uint8)
-            depth = np.abs(255 - depth)  # Reverse
-        else:
-            depth = np.zeros(rgb.size, dtype=np.uint8) + 255
+        # The 5th channel: semantic -------------------------------------------
+        semantic_pth = os.path.join(self.semantic_path,
+                                    self.semantic_tmpl.format(record.untrimmed_video_name))
+        semantic = np.zeros(rgb.shape[:2], dtype=np.uint8)
+        if os.path.isfile(semantic_pth) and os.path.isfile(inliers_pth):
+            semantic_dict = torch.load(semantic_pth)
+            for k in ptid:
+                u, v = projection[k]
+                semantic[v, u] = semantic_dict[k]
+            # rbf_opts = {'function': 'linear', 'epsilon': 2.0}
+            # semantic_ = rbf_interpolate(semantic, rbf_opts=rbf_opts)
 
-        # import matplotlib.pyplot as plt
-        # fig, axes = plt.subplots(2, 1)
-        # axes[0].imshow(np.array(rgb))
-        # axes[1].imshow(np.transpose(depth, [1, 0]))
-        # plt.show()
-
-        # Combine RGB+D, take advantage of RGBA format
-        try:
-            rgba = np.dstack([np.array(rgb), depth])
-        except ValueError:
-            rgba = np.dstack([np.array(rgb), np.transpose(depth, [1, 0])])
-        rgba = [Image.fromarray(rgba)]
-        return rgba
+        # Combine the channels
+        rgbds = np.dstack([rgb, depth, semantic]).astype(np.float32)
+        return [rgbds]
 
     def _sample_indices(self, record, modality):
         """
@@ -353,7 +387,7 @@ class EpicVideoRecord(VideoRecord):
         return {'RGB': self.end_frame - self.start_frame,
                 'Flow': (self.end_frame - self.start_frame) / 2,
                 'Spec': self.end_frame - self.start_frame,
-                'RGBD': self.end_frame - self.start_frame}
+                'RGBDS': self.end_frame - self.start_frame}
 
     @property
     def label(self):

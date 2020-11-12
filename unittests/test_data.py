@@ -129,20 +129,20 @@ class TestData(unittest.TestCase):
             if i >= 2:
                 break
 
-    def test_epic_kitchens_rgbdspec(self):
-        """Test epic kitchens dataset with only rgb and spectrogram"""
+    def test_epic_kitchens_rgbdsspec(self):
+        """Test epic kitchens dataset with only rgbds and spectrogram"""
         dataset_cfg = 'configs/dataset_cfgs/epickitchens_short.yaml'
         dataset_name, dataset_params = ConfigLoader.load_dataset_cfg(dataset_cfg)
         dataset_factory = DatasetFactory()
 
         # Prepare some extra parameters
-        modality = ['RGBD', 'Spec']
+        modality = ['RGBDS', 'Spec']
         num_segments = 3
-        input_mean = {'RGBD': [104, 117, 128, 0]}
-        input_std = {'RGBD': [1], 'Spec': [1]}
-        scale_size = {'RGBD': 256, 'Spec': 256}
-        crop_size = {'RGBD': 224, 'Spec': 224}
-        new_length = {'RGBD': 1, 'Spec': 1}
+        input_mean = {'RGBDS': [104, 117, 128, 0, 0]}
+        input_std = {'RGBDS': [1], 'Spec': [1]}
+        scale_size = {'RGBDS': 256, 'Spec': 256}
+        crop_size = {'RGBDS': 224, 'Spec': 224}
+        new_length = {'RGBDS': 1, 'Spec': 1}
 
         # Get augmentation and transforms
         train_augmentation = MiscUtils.get_train_augmentation(modality, crop_size)
@@ -156,24 +156,25 @@ class TestData(unittest.TestCase):
         )
 
         # Create dataset
+        dataset_params['list_file']['train'] = 'dataset_splits/EPIC_KITCHENS_2018/P01_08.pkl'
         dataset = dataset_factory.generate(
             dataset_name, mode='train', modality=modality,
             num_segments=num_segments, new_length=new_length,
-            transform=val_transform, **dataset_params,
+            transform=train_transform, **dataset_params,
         )
-        sample, lbl = dataset.__getitem__(100)
+        sample, lbl = dataset.__getitem__(10)
 
         # Test sample
-        # rgbd = sample['RGBD'].view([3, 4, 224, 224]).numpy()
-        # rgbd = np.transpose(rgbd, [0, 2, 3, 1])
+        # rgbds = sample['RGBDS'].view([3, 5, 224, 224]).numpy()
+        # rgbds = np.transpose(rgbds, [0, 2, 3, 1])
 
-        # rgbd += [104, 117, 128, 0]
-        # rgbd = rgbd.astype(np.uint8)[..., ::-1]
+        # rgbds += input_mean['RGBDS']
+        # rgbds = rgbds[..., ::-1]  # unroll
         # fig, axes = plt.subplots(3, 3)
         # for i in range(3):
-        #     axes[0, i].imshow(rgbd[i])
-        #     axes[1, i].imshow(rgbd[i, :, :, :-1])
-        #     axes[2, i].imshow(rgbd[i, :, :, -1])
+        #     axes[0, i].imshow(rgbds[i, :, :, :3].astype(np.uint8))
+        #     axes[1, i].imshow(rgbds[i, :, :, 3])
+        #     axes[2, i].imshow(rgbds[i, :, :, 4])
         # plt.show()
 
 
