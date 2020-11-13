@@ -162,7 +162,7 @@ class TestData(unittest.TestCase):
             num_segments=num_segments, new_length=new_length,
             transform=train_transform, **dataset_params,
         )
-        sample, lbl = dataset.__getitem__(10)
+        sample, lbl = dataset.__getitem__(0)
 
         # Test sample
         # rgbds = sample['RGBDS'].view([3, 5, 224, 224]).numpy()
@@ -173,8 +173,8 @@ class TestData(unittest.TestCase):
         # fig, axes = plt.subplots(3, 3)
         # for i in range(3):
         #     axes[0, i].imshow(rgbds[i, :, :, :3].astype(np.uint8))
-        #     axes[1, i].imshow(rgbds[i, :, :, 3])
-        #     axes[2, i].imshow(rgbds[i, :, :, 4])
+        #     axes[1, i].imshow(rgbds[i, :, :, 3], vmin=rgbds[..., 3].min(), vmax=rgbds[..., 3].max())
+        #     axes[2, i].imshow(rgbds[i, :, :, 4], vmin=0, vmax=23)
         # plt.show()
 
 

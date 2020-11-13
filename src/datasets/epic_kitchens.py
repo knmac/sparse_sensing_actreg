@@ -269,7 +269,6 @@ class EpicKitchenDataset(BaseDataset):
         inliers_pth = os.path.join(self.depth_path,
                                    record.untrimmed_video_name,
                                    self.depth_tmpl.format(idx_untrimmed-1))
-        depth = np.zeros(rgb.shape[:2], dtype=np.float32)
         if os.path.isfile(inliers_pth):
             ptid, pt3d, pt2d = read_inliner(inliers_pth)
 
@@ -281,6 +280,13 @@ class EpicKitchenDataset(BaseDataset):
             cam_center = frame_info.camCenter
             principle_ray_dir = frame_info.principleRayDir
 
+            # Find depth wrt to camera coordinates
+            rbf_opts = {'function': 'linear', 'epsilon': 2.0}
+            depth, projection = project_depth(
+                ptid, pt3d, pt2d, cam_center, principle_ray_dir,
+                height=1080, width=1920,
+                new_h=rgb.shape[0], new_w=rgb.shape[1])
+
             # Normalize depth to the scale in milimeters
             normalize_point_pth = os.path.join(
                 self.depth_path, record.untrimmed_video_name, '0', 'Points.txt')
@@ -290,23 +296,29 @@ class EpicKitchenDataset(BaseDataset):
             sfm_dist, real_dist = float(sfm_dist), float(real_dist)
             depth = depth / sfm_dist * real_dist
 
-            # Find depth wrt to camera coordinates
-            rbf_opts = {'function': 'linear', 'epsilon': 2.0}
-            depth, projection = project_depth(
-                ptid, pt3d, pt2d, cam_center, principle_ray_dir,
-                height=1080, width=1920,
-                new_h=rgb.shape[0], new_w=rgb.shape[1])
+            # Interpolation
             depth = rbf_interpolate(depth, rbf_opts=rbf_opts)
+        else:
+            depth = np.zeros(rgb.shape[:2], dtype=np.float32)
 
         # The 5th channel: semantic -------------------------------------------
         semantic_pth = os.path.join(self.semantic_path,
                                     self.semantic_tmpl.format(record.untrimmed_video_name))
         semantic = np.zeros(rgb.shape[:2], dtype=np.uint8)
+
         if os.path.isfile(semantic_pth) and os.path.isfile(inliers_pth):
+            # Sort ptid by depth
+            zz = [pt3d[k][2] for k in ptid]
+            _, ptid_sort = zip(*sorted(zip(zz, ptid), reverse=True))
+
+            # Expand wrt depth
             semantic_dict = torch.load(semantic_pth)
-            for k in ptid:
+            for k in ptid_sort:
                 u, v = projection[k]
-                semantic[v, u] = semantic_dict[k]
+                scale = int((pt3d[k][2] / sfm_dist * real_dist) / 30)
+                semantic[max(v-scale//2, 0):min(v+scale//2, semantic.shape[0]),
+                         max(u-scale//2, 0):min(u+scale//2, semantic.shape[1])
+                         ] = semantic_dict[k]
             # rbf_opts = {'function': 'linear', 'epsilon': 2.0}
             # semantic_ = rbf_interpolate(semantic, rbf_opts=rbf_opts)
 
