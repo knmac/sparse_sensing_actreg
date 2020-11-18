@@ -6,6 +6,7 @@ from pathlib import Path
 
 import librosa
 import torch
+import cv2
 import numpy as np
 import pandas as pd
 from numpy.random import randint
@@ -19,6 +20,7 @@ from src.datasets.base_dataset import BaseDataset
 from src.datasets.video_record import VideoRecord
 from src.utils.read_3d_data import (read_inliner, read_intrinsic_extrinsic,
                                     project_depth, rbf_interpolate)
+from src.utils.misc import MiscUtils
 
 
 class EpicKitchenDataset(BaseDataset):
@@ -298,6 +300,21 @@ class EpicKitchenDataset(BaseDataset):
 
             # Interpolation
             depth = rbf_interpolate(depth, rbf_opts=rbf_opts)
+
+            # Bilateral filtering with reference image
+            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
+            k_size = 9
+            h_size = k_size // 2
+            gray_pad = np.pad(gray, ((h_size, h_size), (h_size, h_size)))
+            depth_pad = np.pad(depth, ((h_size, h_size), (h_size, h_size)))
+            depth = MiscUtils.ref_bilateral_filter(depth_pad, gray_pad, 9, 3.0, 3.0)
+            depth = depth[h_size:-h_size, h_size:-h_size]
+
+            # Clip depth to [0.5m..5m] and inverse
+            depth = 1000.0 / np.clip(depth, 500, 5000)
+
+            # Normalize to 0..255
+            depth = (depth - 0.2) / 1.8 * 255
         else:
             depth = np.zeros(rgb.shape[:2], dtype=np.float32)
 
@@ -305,6 +322,7 @@ class EpicKitchenDataset(BaseDataset):
         semantic_pth = os.path.join(self.semantic_path,
                                     self.semantic_tmpl.format(record.untrimmed_video_name))
         semantic = np.zeros(rgb.shape[:2], dtype=np.uint8)
+        exclude_lst = [0, 1, 2]
 
         if os.path.isfile(semantic_pth) and os.path.isfile(inliers_pth):
             # Sort ptid by depth
@@ -314,13 +332,18 @@ class EpicKitchenDataset(BaseDataset):
             # Expand wrt depth
             semantic_dict = torch.load(semantic_pth)
             for k in ptid_sort:
+                # exclude background, hand, and floor
+                if semantic_dict[k] in exclude_lst:
+                    continue
+
                 u, v = projection[k]
                 scale = int((pt3d[k][2] / sfm_dist * real_dist) / 30)
                 semantic[max(v-scale//2, 0):min(v+scale//2, semantic.shape[0]),
                          max(u-scale//2, 0):min(u+scale//2, semantic.shape[1])
                          ] = semantic_dict[k]
-            # rbf_opts = {'function': 'linear', 'epsilon': 2.0}
-            # semantic_ = rbf_interpolate(semantic, rbf_opts=rbf_opts)
+
+            # Normalize to 0..255 (there are 0..23 classes in total)
+            semantic = (semantic / 23 * 255).astype(int)
 
         # Combine the channels
         rgbds = np.dstack([rgb, depth, semantic]).astype(np.float32)

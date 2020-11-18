@@ -7,6 +7,7 @@ import argparse
 
 import torch
 import torchvision
+import numpy as np
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -262,3 +263,57 @@ class MiscUtils:
                     normalize[m],
                 ])
         return train_transform, val_transform
+
+    @staticmethod
+    def ref_bilateral_filter(img_in, img_ref, k_size, sigma_i, sigma_s,
+                             reg_constant=1e-8):
+        """Bilateral filtering using referencing image. If padding is desired,
+        img_in should be padded prior to calling
+
+        Ref: http://jamesgregson.ca/bilateral-filtering-in-python.html
+
+        Args:
+            img_in: (ndarray) input image of shape (H, W)
+            img_ref: (ndarray) referencing image of shape (H, W)
+            k_size: (int) kernel size
+            sigma_i: (float) value gaussian std. dev.
+            sigma_s: (float) spatial gaussian std. dev.
+            reg_constant: (float) optional regularization constant for pathalogical cases
+
+        Returns:
+            result: (ndarray) output bilateral-filtered image
+        """
+        # check the input
+        if not isinstance(img_in, np.ndarray) or img_in.dtype != 'float32' or img_in.ndim != 2:
+            raise ValueError('Expected a 2D numpy.ndarray with float32 elements')
+
+        # Gaussian function
+        def gaussian(x2, sigma2):
+            return (1.0 / (2*np.pi*sigma2)) * np.exp(-x2 / (2*sigma2))
+
+        # Half of kernel size
+        half_size = k_size//2
+
+        # Initialize results
+        wgt_sum = np.ones(img_in.shape)*reg_constant
+        result = img_in*reg_constant
+
+        # Bilateral filtering
+        for shft_x in range(-half_size, half_size+1):
+            for shft_y in range(-half_size, half_size+1):
+                # Compute the spatial weight
+                gs = gaussian(shft_x**2+shft_y**2, sigma_s**2)
+
+                # Shift by the offsets
+                off_in = np.roll(img_in, [shft_y, shft_x], axis=[0, 1])
+                off_ref = np.roll(img_ref, [shft_y, shft_x], axis=[0, 1])
+
+                # Compute the value weight
+                gi = gaussian((off_ref-img_ref)**2, sigma_i**2)
+
+                # Accumulate the results
+                tw = gs * gi
+                result += off_in*tw
+                wgt_sum += tw
+        result /= wgt_sum
+        return result

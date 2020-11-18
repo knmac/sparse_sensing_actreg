@@ -138,7 +138,7 @@ class TestData(unittest.TestCase):
         # Prepare some extra parameters
         modality = ['RGBDS', 'Spec']
         num_segments = 3
-        input_mean = {'RGBDS': [104, 117, 128, 0, 0]}
+        input_mean = {'RGBDS': [104, 117, 128, 127, 127]}
         input_std = {'RGBDS': [1], 'Spec': [1]}
         scale_size = {'RGBDS': 256, 'Spec': 256}
         crop_size = {'RGBDS': 224, 'Spec': 224}
@@ -176,10 +176,10 @@ class TestData(unittest.TestCase):
 
         #     axes[1, i].imshow(rgbds[i, :, :, :3].astype(np.uint8))
         #     pcm1 = axes[1, i].imshow(rgbds[i, :, :, 3], alpha=0.6,
-        #                              vmin=rgbds[..., 3].min(), vmax=rgbds[..., 3].max())
+        #                              vmin=0, vmax=255)
 
         #     axes[2, i].imshow(rgbds[i, :, :, :3].astype(np.uint8))
-        #     pcm2 = axes[2, i].imshow(rgbds[i, :, :, 4], alpha=0.6, vmin=0, vmax=23)
+        #     pcm2 = axes[2, i].imshow(rgbds[i, :, :, 4], alpha=0.6, vmin=0, vmax=255)
 
         # fig.colorbar(pcm1, ax=axes[1, -1])
         # fig.colorbar(pcm2, ax=axes[2, -1])
