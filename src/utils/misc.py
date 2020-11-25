@@ -265,6 +265,46 @@ class MiscUtils:
         return train_transform, val_transform
 
     @staticmethod
+    def compare_dicts(dict1, dict2, epsilon=1e-7, verbose=False):
+        """Compare the content of two dictionaries of torch tensors
+
+        Args:
+            dict1: the first dictionary
+            dict2: the second dictionary
+            epsilon: tolerance factor. If the difference between values of 2
+                dictionaries wrt each key is less than epsilon, they are
+                considered to be the same. For strict comparison, set epsilon=0
+            verbose: whether to print out the difference statistics of a key,
+                including mean, standard deviation, and max
+
+        Return:
+            all_same: True if all values are the same (wrt to epsilon).
+                False otherwise.
+        """
+        if dict1.keys() != dict2.keys():
+            if verbose:
+                print('Dictionaries have different keys. Not comparable!')
+            return False
+
+        all_same = True
+        for k in dict1:
+            diff = (dict1[k] - dict2[k]).abs()
+            same = diff.max().item() <= epsilon
+
+            if same is False:
+                all_same = False
+                if verbose:
+                    print('>>> %s -> diff: mean=%e, std=%e, max=%e' %
+                          (k, diff.mean(), diff.std(), diff.max()))
+
+        if verbose:
+            if all_same:
+                print('Dictionaries are the same')
+            else:
+                print('Dictionaries are different')
+        return all_same
+
+    @staticmethod
     def ref_bilateral_filter(img_in, img_ref, k_size, sigma_i, sigma_s,
                              reg_constant=1e-8):
         """Bilateral filtering using referencing image. If padding is desired,
