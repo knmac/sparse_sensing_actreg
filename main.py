@@ -54,6 +54,9 @@ def parse_args():
     parser.add_argument('--best_fn', type=str, default='max',
                         choices=['min', 'max'],
                         help='Function to compare the best metric')
+    parser.add_argument('--batch_size', type=int, default=-1, nargs='?',
+                        help='Batch size to overwrite the one in train_cfg.'
+                             'If provided, will use this instead')
 
     parser.add_argument('--gpus', nargs='+', type=int, default=None)
     parser.add_argument('--experiment_suffix', type=str, default='',
@@ -143,6 +146,8 @@ def main(args):
     model_name, model_params = ConfigLoader.load_model_cfg(args.model_cfg)
     dataset_name, dataset_params = ConfigLoader.load_dataset_cfg(args.dataset_cfg)
     train_params = ConfigLoader.load_train_cfg(args.train_cfg)
+    if (args.batch_size is not None) and (args.batch_size > 0):
+        train_params['batch_size'] = args.batch_size
 
     # Copy some parameters from model to share
     dataset_params.update({
