@@ -21,6 +21,9 @@ from src.datasets.video_record import VideoRecord
 from src.utils.read_3d_data import (read_inliner, read_intrinsic_extrinsic,
                                     project_depth, rbf_interpolate)
 from src.utils.misc import MiscUtils
+import src.utils.logging as logging
+
+logger = logging.get_logger(__name__)
 
 
 class EpicKitchenDataset(BaseDataset):
@@ -70,6 +73,7 @@ class EpicKitchenDataset(BaseDataset):
         self.name = 'epic_kitchens'
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+        logger.info('Loading audio...')
         if audio_path is not None:
             if not use_audio_dict:
                 if not os.path.isdir(audio_path):
@@ -80,6 +84,7 @@ class EpicKitchenDataset(BaseDataset):
                     audio_path = os.path.join(root, audio_path)
                 with open(audio_path, 'rb') as stream:
                     self.audio_path = pickle.load(stream)
+        logger.info('Done loading audio!')
 
         if not os.path.isdir(visual_path):
             visual_path = os.path.join(root, visual_path)
