@@ -176,6 +176,7 @@ def main(args):
     }
 
     # Build model
+    logger.info('Building main model...')
     model_factory = ModelFactory()
     try:
         model = model_factory.generate(model_name, device=device, **model_params)
@@ -185,6 +186,7 @@ def main(args):
             model_name, device=device, model_factory=model_factory, **model_params)
 
     # Get training augmentation and transforms
+    logger.info('Building data augmentation...')
     train_augmentation = MiscUtils.get_train_augmentation(model.modality, model.crop_size)
     train_transform, val_transform = MiscUtils.get_train_val_transforms(
         modality=model.modality,
@@ -202,11 +204,13 @@ def main(args):
     # Main pipeline
     if args.is_training:
         # Create data loader for training
+        logger.info('Building train dataloader...')
         train_dataset = dataset_factory.generate(
             dataset_name, mode='train', transform=train_transform, **dataset_params)
         train_loader = DataLoader(train_dataset, shuffle=True, **loader_params)
 
         # Create data loader for validation
+        logger.info('Building val dataloader...')
         val_dataset = dataset_factory.generate(
             dataset_name, mode='val', transform=val_transform, **dataset_params)
         val_loader = DataLoader(val_dataset, shuffle=False, **loader_params)
@@ -217,17 +221,20 @@ def main(args):
         # Create data loader for testing
         if dataset_params['list_file']['test'] is not None:
             # Use the given list
+            logger.info('Building test dataloader...')
             test_dataset = dataset_factory.generate(
                 dataset_name, mode='test', transform=val_transform, **dataset_params)
             test_loader = DataLoader(test_dataset, shuffle=False, **loader_params)
             has_groundtruth = True
         else:
             # Use the full test list without groundtruth
+            logger.info('Building seen test dataloader...')
             test_dataset_s1 = dataset_factory.generate(
                 dataset_name, mode='test', transform=val_transform,
                 full_test_split='seen', **dataset_params)
             test_loader_s1 = DataLoader(test_dataset_s1, shuffle=False, **loader_params)
 
+            logger.info('Building unseen test dataloader...')
             test_dataset_s2 = dataset_factory.generate(
                 dataset_name, mode='test', transform=val_transform,
                 full_test_split='unseen', **dataset_params)
