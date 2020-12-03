@@ -118,6 +118,7 @@ def gen_experiment_name(dataset_name, model_name, model_params, train_params, ar
         'ep' + str(train_params['n_epochs']),
         'lr' + str(train_params['optim_params']['lr']),
         'lr_st' + '_'.join([str(x) for x in train_params['lr_steps']]),
+        'seed' + str(args.seed),
         args.experiment_suffix,
     ])
 
