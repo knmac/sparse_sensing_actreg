@@ -54,6 +54,8 @@ def parse_args():
     parser.add_argument('--best_fn', type=str, default='max',
                         choices=['min', 'max'],
                         help='Function to compare the best metric')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Random seed')
     parser.add_argument('--batch_size', type=int, default=-1, nargs='?',
                         help='Batch size to overwrite the one in train_cfg.'
                              'If provided, will use this instead')
@@ -139,7 +141,7 @@ def gen_experiment_name(dataset_name, model_name, model_params, train_params, ar
 def main(args):
     """Main function"""
     # Fix random seeds
-    fix_seeds()
+    fix_seeds(args.seed)
 
     # -------------------------------------------------------------------------
     # Load configurations
