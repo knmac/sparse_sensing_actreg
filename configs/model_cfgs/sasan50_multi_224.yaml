@@ -1,0 +1,4 @@
+model_name: 'SASANMulti'
+model_params:
+    backbone: 'ResNet50'
+    stem: False
