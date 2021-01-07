@@ -133,21 +133,26 @@ class SASANMulti(BaseModel):
                 self.input_mean[m] = [104, 117, 128, 127, 127]
 
             # Load pretrained weights
-            if (self.pretrained_weights[m] is not None) and \
-                    (os.path.isfile(self.pretrained_weights[m])):
-                logger.info('Loading pretrained weight for SAN modality: {}'.format(m))
-                checkpoint = torch.load(self.pretrained_weights[m])
+            if self.pretrained_weights[m] is not None:
+                if os.path.isfile(self.pretrained_weights[m]):
+                    logger.info('Loading pretrained weight for modality: {}'.format(m))
+                    checkpoint = torch.load(self.pretrained_weights[m])
 
-                # Remove `module.` from keys
-                state_dict = {k.replace('module.', ''): v
-                              for k, v in checkpoint['state_dict'].items()}
-                try:
-                    self.base_model[m].load_state_dict(state_dict, strict=True)
-                except RuntimeError:
-                    logger.info('Cannot load. Will convert and load later...')
-                    self._load_weight_later.append(m)
+                    # Remove `module.` from keys
+                    state_dict = {k.replace('module.', ''): v
+                                  for k, v in checkpoint['state_dict'].items()}
+                    try:
+                        self.base_model[m].load_state_dict(state_dict, strict=True)
+                    except RuntimeError:
+                        logger.info('Cannot load. Will convert and load later...')
+                        self._load_weight_later.append(m)
+                else:
+                    logger.info('Pretrained weights given but not found: {}'.format(
+                        self.pretrained_weights[m]))
+                    os._exit(-1)
             else:
                 logger.info('Not loading pretrained model for modality {}!'.format(m))
+                logger.info('Use random init instead')
 
     def _construct_spec_model(self, base_model):
         """Convert ImageNet model to spectrogram init model"""
