@@ -140,7 +140,7 @@ class SANMulti(BaseModel):
                 self.input_mean[m] = [104, 117, 128, 127, 127]
 
             # Load pretrained weights
-            if self.pretrained_weights[m] is not None:
+            if self.san_pretrained_weights[m] is not None:
                 if os.path.isfile(self.san_pretrained_weights[m]):
                     logger.info('Loading pretrained weight for SAN modality: {}'.format(m))
                     checkpoint = torch.load(self.san_pretrained_weights[m])
