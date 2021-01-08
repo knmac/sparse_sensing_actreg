@@ -117,10 +117,10 @@ def gen_experiment_name(dataset_name, model_name, model_params, train_params, ar
         # 'dr' + str(model_params['dropout']),
         'ep' + str(train_params['n_epochs']),
         'lr' + str(train_params['optim_params']['lr']),
-        'lr_st' + '_'.join([str(x) for x in train_params['lr_steps']]),
+        'lrst' + '-'.join([str(x) for x in train_params['lr_steps']]),
         'seed' + str(args.seed),
-        args.experiment_suffix,
     ])
+    experiment_name += '__' + args.experiment_suffix
 
     # Generate or recover timestamp
     if args.train_mode == 'resume':
