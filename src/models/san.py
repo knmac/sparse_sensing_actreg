@@ -248,11 +248,11 @@ class SAN(nn.Module):
                 # Compute norm_mask if not precomputed
                 norm_mask = F.conv2d(torch.ones(1, 1, H, H),
                                      torch.ones(1, 1, kernel_size, kernel_size),
-                                     padding=pad*2).to(att_pad.device)
+                                     padding=pad*2)
                 self._norm_mask_dict[(H, kernel_size)] = norm_mask
             else:
                 norm_mask = self._norm_mask_dict[(H, kernel_size)]
-            att_pad = att_pad / norm_mask
+            att_pad = att_pad / norm_mask.to(att_pad.device)
 
         # Unpad
         att = att_pad[:, :, pad:-pad, pad:-pad]
