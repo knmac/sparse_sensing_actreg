@@ -6,6 +6,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .sa.modules import Subtraction, Subtraction2, Aggregation
 
@@ -116,6 +117,8 @@ class SAN(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(c, num_classes)
 
+        self._norm_mask_dict = {}  # Store precomputed normalization masks
+
     def _make_layer(self, sa_type, block, planes, blocks, kernel_size=7, stride=1):
         layers = []
         for _ in range(0, blocks):
@@ -140,12 +143,14 @@ class SAN(nn.Module):
             x = self.fc(x)
         return x
 
-    def get_all_attention_weights(self, aggregated):
+    def get_all_attention_weights(self, aggregated, normalize=False):
         """Get attention weights in all SAM modules of the model. Require to
         run forward first.
 
         Args:
             aggregated: (bool) whether to aggregate the attention weights
+            normalize: (bool) whether to normalize the attention weights. Only
+                works if aggregated is True
 
         Return:
             att: an ordered dictionary as follow:
@@ -170,14 +175,15 @@ class SAN(nn.Module):
                     _weight = item._weight
                     if aggregated:
                         _weight = self._aggreate_attention(
-                            _weight, item.kernel_size, item.stride, item.dilation)
+                            _weight, item.kernel_size, item.stride, item.dilation,
+                            normalize=normalize)
 
                     att[l_name][m_name] = _weight
                 else:
                     att[l_name][m_name] = None
         return att
 
-    def get_attention_weight(self, l_name, m_name, aggregated):
+    def get_attention_weight(self, l_name, m_name, aggregated, normalize=False):
         """Get attention weight at a certain layer and module. Require to run
         forward first
 
@@ -185,6 +191,8 @@ class SAN(nn.Module):
             l_name: (str) name of the layer
             m_name: (str) name of the module
             aggregated: (bool) whether to aggregate the weight across footprint
+            normalize: (bool) whether to normalize the attention weights. Only
+                works if aggregated is True
 
         Return:
             weight: attention weight at the layer/module needed
@@ -197,10 +205,12 @@ class SAN(nn.Module):
         weight = item._weight
         if aggregated:
             weight = self._aggreate_attention(weight, item.kernel_size,
-                                              item.stride, item.dilation)
+                                              item.stride, item.dilation,
+                                              normalize=normalize)
         return weight
 
-    def _aggreate_attention(self, weight, kernel_size, stride=1, dilation=1):
+    def _aggreate_attention(self, weight, kernel_size, stride=1, dilation=1,
+                            normalize=False):
         """Aggregate the attention weight across footprint using cum sum
 
         Args:
@@ -230,6 +240,21 @@ class SAN(nn.Module):
             for j in range(kernel_size):
                 att_pad[:, :, i:i+input_size, j:j+input_size] += weight[:, :, i, j]
         pad = kernel_size // 2
+
+        # Normalize
+        if normalize:
+            H = att_pad.shape[-1] - pad*2
+            if (H, kernel_size) not in self._norm_mask_dict:
+                # Compute norm_mask if not precomputed
+                norm_mask = F.conv2d(torch.ones(1, 1, H, H),
+                                     torch.ones(1, 1, kernel_size, kernel_size),
+                                     padding=pad*2).to(att_pad.device)
+                self._norm_mask_dict[(H, kernel_size)] = norm_mask
+            else:
+                norm_mask = self._norm_mask_dict[(H, kernel_size)]
+            att_pad = att_pad / norm_mask
+
+        # Unpad
         att = att_pad[:, :, pad:-pad, pad:-pad]
         return att
 

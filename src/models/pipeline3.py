@@ -19,7 +19,8 @@ from src.utils.load_cfg import ConfigLoader
 class Pipeline3(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
                  new_length, attention_layer, attention_dim,
-                 rnn_prefix_len, tf_decay, feat_model_cfg, hallu_model_cfg):
+                 rnn_prefix_len, tf_decay, feat_model_cfg, hallu_model_cfg,
+                 norm_attention=False):
         super(Pipeline3, self).__init__(device)
 
         self.num_class = num_class
@@ -28,6 +29,7 @@ class Pipeline3(BaseModel):
         self.new_length = new_length
         self.attention_layer = attention_layer
         self.attention_dim = attention_dim
+        self.norm_attention = norm_attention  # whether to normalize attention
 
         self.rnn_prefix_len = rnn_prefix_len  # N frames to feed in RNN at a time
         self.tf_ratio = 1.0  # Initial teacher forcing ratio
@@ -62,6 +64,7 @@ class Pipeline3(BaseModel):
             l_name=self.attention_layer[0],
             m_name=self.attention_layer[1],
             aggregated=True,
+            normalize=self.norm_attention,
         )
         attn = attn.view([-1, self.num_segments] + list(attn.shape[1:]))
         self._attn = attn
