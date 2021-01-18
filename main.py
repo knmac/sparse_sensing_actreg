@@ -186,12 +186,12 @@ def main(args):
     # Build model
     logger.info('Building main model...')
     model_factory = ModelFactory()
-    try:
-        model = model_factory.generate(model_name, device=device, **model_params)
-    except TypeError:
+    if model_name.startswith('Pipeline'):
         # The pipeline requires model_factory to generate child models
         model = model_factory.generate(
             model_name, device=device, model_factory=model_factory, **model_params)
+    else:
+        model = model_factory.generate(model_name, device=device, **model_params)
 
     # Get training augmentation and transforms
     logger.info('Building data augmentation...')
