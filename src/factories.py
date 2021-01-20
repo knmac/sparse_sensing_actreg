@@ -34,6 +34,7 @@ from src.models.pipeline6 import Pipeline6
 from src.models.time_sampler_thres import TemporalSamplerThres
 from src.models.actreg_fc import ActregFc
 from src.models.sasan_multi import SASANMulti
+from src.models.pipeline7 import Pipeline7
 
 import src.utils.logging as logging
 
@@ -120,6 +121,8 @@ class ModelFactory(BaseFactory):
             'ActregFc': ActregFc,
             # ---
             'SASANMulti': SASANMulti,
+            # ---
+            'Pipeline7': Pipeline7,
         }
 
     def generate(self, model_name, **kwargs):
