@@ -65,6 +65,9 @@ def parse_args():
                         help='Addtional suffix for experiment')
     parser.add_argument('--resume_timestamp', type=str, default=None,
                         help='Timestamp to resume the experiment')
+    parser.add_argument('--manual_timestamp', type=str, default=None,
+                        help='Manual timestamp instead of the auto-generated'
+                             'one. Will overwrite resume_timestamp')
 
     # parser.add_argument(
     #     '--pretrained_model_path', type=str, default='',
@@ -72,6 +75,8 @@ def parse_args():
     #          'is training and mode==from_pretrained')
 
     args = parser.parse_args()
+    if args.manual_timestamp is not None:
+        args.resume_timestamp = args.manual_timestamp
 
     # if (not args.is_training) or \
     #         (args.is_training and args.train_mode == 'from_pretrained'):
@@ -127,7 +132,10 @@ def gen_experiment_name(dataset_name, model_name, model_params, train_params, ar
         assert args.resume_timestamp is not None
         timestamp = args.resume_timestamp
     else:
-        timestamp = datetime.now().strftime('%b%d_%H-%M-%S')
+        if args.manual_timestamp is not None:
+            timestamp = args.manual_timestamp
+        else:
+            timestamp = datetime.now().strftime('%b%d_%H-%M-%S')
 
     # Generate dir names
     experiment_dir = os.path.join(experiment_name, timestamp)
