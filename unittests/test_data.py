@@ -186,6 +186,56 @@ class TestData(unittest.TestCase):
 
         # plt.show()
 
+    def test_activitynet(self):
+        dataset_cfg = 'configs/dataset_cfgs/activitynet.yaml'
+        dataset_name, dataset_params = ConfigLoader.load_dataset_cfg(dataset_cfg)
+        dataset_factory = DatasetFactory()
+
+        # Prepare some extra parameters
+        modality = ['RGB']
+        num_segments = 10
+        input_mean = {'RGB': [104, 117, 128]}
+        input_std = {'RGB': [1]}
+        scale_size = {'RGB': 256}
+        crop_size = {'RGB': 224}
+        new_length = {'RGB': 1}
+
+        # Get augmentation and transforms
+        train_augmentation = MiscUtils.get_train_augmentation(modality, crop_size)
+        train_transform, val_transform = MiscUtils.get_train_val_transforms(
+            modality=modality,
+            input_mean=input_mean,
+            input_std=input_std,
+            scale_size=scale_size,
+            crop_size=crop_size,
+            train_augmentation=train_augmentation,
+        )
+
+        # Create dataset
+        dataset = dataset_factory.generate(
+            dataset_name, mode='val', modality=modality,
+            num_segments=num_segments, new_length=new_length,
+            transform=val_transform, **dataset_params,
+        )
+        sample, label = dataset[0]
+        # rgb = sample['RGB'].view(num_segments, 3, 224, 224).permute(0, 2, 3, 1).cpu().numpy()
+        # rgb = (rgb + input_mean['RGB']).astype(np.uint8)[:, :, :, ::-1]
+        # fig, axes = plt.subplots(1, num_segments)
+        # for t in range(num_segments):
+        #     axes[t].imshow(rgb[t])
+        # plt.show()
+
+        # Check with data loader
+        data_loader = torch.utils.data.DataLoader(
+            dataset, batch_size=16, shuffle=False,
+            num_workers=4, pin_memory=True)
+
+        print('')
+        for i, (samples, labels) in enumerate(data_loader):
+            print(i, samples['RGB'].shape)
+            if i >= 2:
+                break
+
 
 if __name__ == '__main__':
     unittest.main()

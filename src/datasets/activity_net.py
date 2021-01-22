@@ -74,7 +74,7 @@ class ActivityNetDataset(BaseDataset):
             index = np.random.randint(len(self.video_list))
             record = self.video_list[index]
             file_name = self.image_tmpl.format(1)
-            full_path = os.path.join(self.root_path, record.path, file_name)
+            full_path = os.path.join(self.visual_path, record.path, file_name)
 
         # Get the frame indices wrt the current mode
         if self.mode == 'train':
@@ -83,10 +83,12 @@ class ActivityNetDataset(BaseDataset):
             segment_indices = self._get_val_indices(record)
         elif self.mode == 'test':
             segment_indices = self._get_test_indices(record)
-        return self.get(record, segment_indices)
+        img, label = self.get(record, segment_indices)
+        return {'RGB': img}, label
 
     def _parse_list(self):
-        tmp = [x.strip().split(',') for x in open(self.list_file)]
+        with open(self.list_file) as f:
+            tmp = [x.strip().split(',') for x in f]
 
         if (self.mode != 'test') or (self.remove_missing):
             tmp = [item for item in tmp if int(item[1]) >= 3]
