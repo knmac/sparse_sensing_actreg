@@ -12,8 +12,8 @@ python tools/preprocessing_activitynet/extract_audio.py \
 # -----------------------------------------------------------------------------
 # Create wav dictionary
 # -----------------------------------------------------------------------------
-echo "\nCreating wav dictionary..."
+#echo "\nCreating wav dictionary..."
 
-python tools/preprocessing_epic/wav_to_dict.py \
-    --sound_dir "data/ActivityNet/audio" \
-    --output_dir "data/ActivityNet/audio_dict.pkl"
+#python tools/preprocessing_epic/wav_to_dict.py \
+#    --sound_dir "data/ActivityNet/audio" \
+#    --output_dir "data/ActivityNet/audio_dict.pkl"

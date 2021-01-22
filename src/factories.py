@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..')))
 
 from src.datasets.epic_kitchens import EpicKitchenDataset
+from src.datasets.activity_net import ActivityNetDataset
 from src.models.tbn import TBN
 from src.models.pipeline_simple import PipelineSimple
 from src.models.tbn_feat import TBNFeat
@@ -139,6 +140,7 @@ class DatasetFactory(BaseFactory):
         self.info_msg = 'Generating dataset'
         self.objfn_dict = {
             'epic_kitchens': EpicKitchenDataset,
+            'activity_net': ActivityNetDataset,
         }
 
     def generate(self, dataset_name, **kwargs):
