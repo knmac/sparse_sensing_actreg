@@ -1,0 +1,9 @@
+dataset_name: 'activity_net'
+dataset_params:
+    list_file:
+        train: 'dataset_splits/ActivityNet_v1.3/actnet_train_split_short.txt'
+        val:   'dataset_splits/ActivityNet_v1.3/actnet_val_split_short.txt'
+        test:  'dataset_splits/ActivityNet_v1.3/actnet_val_split_short.txt'
+    visual_path: 'data/ActivityNet/frames_256'
+    image_tmpl:
+        RGB: '{:04d}.jpg'
