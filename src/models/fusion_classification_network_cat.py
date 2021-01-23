@@ -23,7 +23,7 @@ class Fusion_Classification_Network_Cat(Fusion_Classification_Network):
             base_out = self.fc1(inputs)
             base_out = self.relu(base_out)
         else:  # Single modality
-            base_out = inputs[0]
+            base_out = inputs
 
         # ---------------------------------------------------------------------
         # This part below is the same as the parent class
