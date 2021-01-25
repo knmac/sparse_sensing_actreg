@@ -10,6 +10,7 @@ model_params:
     actreg_pretrained_weights: 'pretrained/actreggru2_top1_cat/actreg.model'
     freeze_hallu: True
     freeze_actreg: False
+    using_cupy: False
     num_class: [125, 352]
     num_segments: 10
     feat_process_type: 'cat'

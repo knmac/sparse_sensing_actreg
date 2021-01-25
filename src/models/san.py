@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .sa.modules import Subtraction, Subtraction2, Aggregation
+from .sa.modules_noncupy import SubtractionNonCupy, Subtraction2NonCupy, AggregationNonCupy
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -27,7 +28,7 @@ def position(H, W, is_cuda=True):
 
 
 class SAM(nn.Module):
-    def __init__(self, sa_type, in_planes, rel_planes, out_planes, share_planes, kernel_size=3, stride=1, dilation=1):
+    def __init__(self, sa_type, in_planes, rel_planes, out_planes, share_planes, kernel_size=3, stride=1, dilation=1, using_cupy=True):
         super(SAM, self).__init__()
         self.sa_type, self.kernel_size, self.stride = sa_type, kernel_size, stride
         self.dilation = dilation
@@ -40,8 +41,12 @@ class SAM(nn.Module):
                                         nn.BatchNorm2d(rel_planes), nn.ReLU(inplace=True),
                                         nn.Conv2d(rel_planes, out_planes // share_planes, kernel_size=1))
             self.conv_p = nn.Conv2d(2, 2, kernel_size=1)
-            self.subtraction = Subtraction(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
-            self.subtraction2 = Subtraction2(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
+            if using_cupy:
+                self.subtraction = Subtraction(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
+                self.subtraction2 = Subtraction2(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
+            else:
+                self.subtraction = SubtractionNonCupy(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
+                self.subtraction2 = Subtraction2NonCupy(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
             self.softmax = nn.Softmax(dim=-2)
         else:
             self.conv_w = nn.Sequential(nn.BatchNorm2d(rel_planes * (pow(kernel_size, 2) + 1)), nn.ReLU(inplace=True),
@@ -51,7 +56,10 @@ class SAM(nn.Module):
             self.unfold_i = nn.Unfold(kernel_size=1, dilation=dilation, padding=0, stride=stride)
             self.unfold_j = nn.Unfold(kernel_size=kernel_size, dilation=dilation, padding=0, stride=stride)
             self.pad = nn.ReflectionPad2d(kernel_size // 2)
-        self.aggregation = Aggregation(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
+        if using_cupy:
+            self.aggregation = Aggregation(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
+        else:
+            self.aggregation = AggregationNonCupy(kernel_size, stride, (dilation * (kernel_size - 1) + 1) // 2, dilation, pad_mode=1)
 
     def forward(self, x):
         x1, x2, x3 = self.conv1(x), self.conv2(x), self.conv3(x)
@@ -70,10 +78,10 @@ class SAM(nn.Module):
 
 
 class Bottleneck(nn.Module):
-    def __init__(self, sa_type, in_planes, rel_planes, mid_planes, out_planes, share_planes=8, kernel_size=7, stride=1):
+    def __init__(self, sa_type, in_planes, rel_planes, mid_planes, out_planes, share_planes=8, kernel_size=7, stride=1, using_cupy=True):
         super(Bottleneck, self).__init__()
         self.bn1 = nn.BatchNorm2d(in_planes)
-        self.sam = SAM(sa_type, in_planes, rel_planes, mid_planes, share_planes, kernel_size, stride)
+        self.sam = SAM(sa_type, in_planes, rel_planes, mid_planes, share_planes, kernel_size, stride, using_cupy=using_cupy)
         self.bn2 = nn.BatchNorm2d(mid_planes)
         self.conv = nn.Conv2d(mid_planes, out_planes, kernel_size=1)
         self.relu = nn.ReLU(inplace=True)
@@ -89,8 +97,9 @@ class Bottleneck(nn.Module):
 
 
 class SAN(nn.Module):
-    def __init__(self, sa_type, block, layers, kernels, num_classes):
+    def __init__(self, sa_type, block, layers, kernels, num_classes, using_cupy=True):
         super(SAN, self).__init__()
+        self.using_cupy = using_cupy
         c = 64
         self.conv_in, self.bn_in = conv1x1(3, c), nn.BatchNorm2d(c)
         self.conv0, self.bn0 = conv1x1(c, c), nn.BatchNorm2d(c)
@@ -122,7 +131,7 @@ class SAN(nn.Module):
     def _make_layer(self, sa_type, block, planes, blocks, kernel_size=7, stride=1):
         layers = []
         for _ in range(0, blocks):
-            layers.append(block(sa_type, planes, planes // 16, planes // 4, planes, 8, kernel_size, stride))
+            layers.append(block(sa_type, planes, planes // 16, planes // 4, planes, 8, kernel_size, stride, using_cupy=self.using_cupy))
         return nn.Sequential(*layers)
 
     def forward(self, x):

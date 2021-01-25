@@ -21,7 +21,8 @@ class Pipeline7(BaseModel):
                  low_feat_model_cfg, high_feat_model_cfg, hallu_model_cfg,
                  actreg_model_cfg, spatial_sampler_cfg, temporal_sampler_cfg,
                  hallu_pretrained_weights, actreg_pretrained_weights,
-                 feat_process_type, freeze_hallu, freeze_actreg):
+                 feat_process_type, freeze_hallu, freeze_actreg,
+                 using_cupy):
         super(Pipeline7, self).__init__(device)
 
         # Turn off cudnn benchmark because of different input size
@@ -40,6 +41,7 @@ class Pipeline7(BaseModel):
         self.attention_dim = attention_dim
         self.dropout = dropout
         self.feat_process_type = feat_process_type  # [add, cat]
+        self.using_cupy = using_cupy
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
@@ -48,6 +50,7 @@ class Pipeline7(BaseModel):
         params.update({
             'new_length': self.new_length,
             'modality': self.modality,
+            'using_cupy': self.using_cupy,
         })
         self.low_feat_model = model_factory.generate(name, device=device, **params)
 
@@ -56,6 +59,7 @@ class Pipeline7(BaseModel):
         params.update({
             'new_length': self.new_length,
             'modality': ['RGB'],  # Remove spec because low_model already has it
+            'using_cupy': self.using_cupy,
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
 

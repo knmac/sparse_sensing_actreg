@@ -22,7 +22,7 @@ class SANMulti(BaseModel):
     def __init__(self, device, modality, san_sa_type, san_layers, san_kernels,
                  san_pretrained_weights=None, san_remove_avgpool=False,
                  new_length=None, new_input_size=None, new_scale_size=None,
-                 **kwargs):
+                 using_cupy=True, **kwargs):
         super(SANMulti, self).__init__(device)
         # self.num_class = num_class
         self.modality = modality
@@ -41,6 +41,7 @@ class SANMulti(BaseModel):
         self.san_layers = san_layers
         self.san_kernels = san_kernels
         self.san_remove_avgpool = san_remove_avgpool  # whether to remove the avgpool layer
+        self.using_cupy = using_cupy
 
         # Get the pretrained weight and convert to dictionary if neccessary
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -123,6 +124,7 @@ class SANMulti(BaseModel):
                 layers=self.san_layers,
                 kernels=self.san_kernels,
                 num_classes=1000,  # Final fc will be removed later
+                using_cupy=self.using_cupy,
             )
             if self.new_input_size is None:
                 self.input_size[m] = 224
