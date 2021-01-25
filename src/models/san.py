@@ -242,7 +242,7 @@ class SAN(nn.Module):
         weight = weight.reshape([batch, weight_channels, kernel_size, kernel_size, input_size, input_size])
 
         out_size = input_size + kernel_size - 1
-        att_pad = torch.zeros([batch, weight_channels, out_size, out_size], dtype=torch.float32).cuda()
+        att_pad = torch.zeros([batch, weight_channels, out_size, out_size], dtype=torch.float32).to(weight.device)
 
         # Aggregate by cum sum
         for i in range(kernel_size):

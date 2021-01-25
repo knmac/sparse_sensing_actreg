@@ -86,7 +86,7 @@ class SANMulti(BaseModel):
         if len(self._load_weight_later) != 0:
             for m in self._load_weight_later:
                 if os.path.isfile(self.san_pretrained_weights[m]):
-                    checkpoint = torch.load(self.san_pretrained_weights[m])
+                    checkpoint = torch.load(self.san_pretrained_weights[m], map_location=self.device)
 
                     # Remove `module.` from keys
                     state_dict = {k.replace('module.', ''): v
@@ -145,7 +145,7 @@ class SANMulti(BaseModel):
             if self.san_pretrained_weights[m] is not None:
                 if os.path.isfile(self.san_pretrained_weights[m]):
                     logger.info('Loading pretrained weight for SAN modality: {}'.format(m))
-                    checkpoint = torch.load(self.san_pretrained_weights[m])
+                    checkpoint = torch.load(self.san_pretrained_weights[m], map_location=self.device)
 
                     # Remove `module.` from keys
                     state_dict = {k.replace('module.', ''): v
