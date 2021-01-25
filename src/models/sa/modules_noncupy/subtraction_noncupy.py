@@ -32,6 +32,13 @@ class SubtractionNonCupy(nn.Module):
             # Ref-pad
             unfold_i = nn.Unfold(kernel_size=1, dilation=dilation, padding=0, stride=stride)
             unfold_j = nn.Unfold(kernel_size=kernel_size, dilation=dilation, padding=0, stride=stride)
-            pad = nn.ReflectionPad2d(padding)
-            out = unfold_i(input).view(n, c, 1, out_height * out_width) - unfold_j(pad(input)).view(n, c, pow(kernel_size, 2), out_height * out_width)
+            if padding < in_height:
+                pad = nn.ReflectionPad2d(padding)
+                out = unfold_i(input).view(n, c, 1, out_height * out_width) - unfold_j(pad(input)).view(n, c, pow(kernel_size, 2), out_height * out_width)
+            else:
+                pad = nn.ReflectionPad2d(1)
+                input_pad = input
+                for _ in range(padding):
+                    input_pad = pad(input_pad)
+                out = unfold_i(input).view(n, c, 1, out_height * out_width) - unfold_j(input_pad).view(n, c, pow(kernel_size, 2), out_height * out_width)
         return out

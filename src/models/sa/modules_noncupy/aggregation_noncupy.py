@@ -32,7 +32,14 @@ class AggregationNonCupy(nn.Module):
         elif self.pad_mode == 1:
             # Ref-pad
             unfold_j = nn.Unfold(kernel_size=kernel_size, dilation=dilation, padding=0, stride=stride)
-            pad = nn.ReflectionPad2d(padding)
-            x2 = unfold_j(pad(input)).view(n, c_x // c_w, c_w, pow(kernel_size, 2), out_height * out_width)
+            if padding < in_height:
+                pad = nn.ReflectionPad2d(padding)
+                x2 = unfold_j(pad(input)).view(n, c_x // c_w, c_w, pow(kernel_size, 2), out_height * out_width)
+            else:
+                pad = nn.ReflectionPad2d(1)
+                input_pad = input
+                for _ in range(padding):
+                    input_pad = pad(input_pad)
+                x2 = unfold_j(input_pad).view(n, c_x // c_w, c_w, pow(kernel_size, 2), out_height * out_width)
             out = (weight.unsqueeze(1) * x2).sum(-2).view(n, c_x, out_height, out_width)
         return out
