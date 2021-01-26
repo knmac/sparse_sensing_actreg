@@ -55,7 +55,7 @@ class SSIM(torch.nn.Module):
     def forward(self, img1, img2):
         (_, channel, _, _) = img1.size()
 
-        if channel == self.channel and self.window.data.type() == img1.data.type():
+        if channel == self.channel and self.window.data.type() == img1.data.type() and self.window.device == img1.device:
             window = self.window
         else:
             window = create_window(self.window_size, channel)
