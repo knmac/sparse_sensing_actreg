@@ -36,6 +36,8 @@ from src.models.time_sampler_thres import TemporalSamplerThres
 from src.models.actreg_fc import ActregFc
 from src.models.sasan_multi import SASANMulti
 from src.models.pipeline7 import Pipeline7
+from src.models.pipeline8 import Pipeline8
+from src.models.time_sampler_rnn import TemporalSamplerRNN
 
 import src.utils.logging as logging
 
@@ -124,6 +126,9 @@ class ModelFactory(BaseFactory):
             'SASANMulti': SASANMulti,
             # ---
             'Pipeline7': Pipeline7,
+            # ---
+            'Pipeline8': Pipeline8,
+            'TemporalSamplerRNN': TemporalSamplerRNN,
         }
 
     def generate(self, model_name, **kwargs):

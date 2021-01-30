@@ -98,6 +98,9 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
         if hasattr(model.module, 'decay_teacher_forcing_ratio'):
             sum_writer.add_scalar('data/tf_ratio', model.module.tf_ratio, run_iter)
             model.module.decay_teacher_forcing_ratio()
+        if hasattr(model.module, 'decay_temperature'):
+            sum_writer.add_scalar('data/temperature', model.module.temperature, run_iter)
+            model.module.decay_temperature()
 
     # Done training
     sum_writer.close()
@@ -167,6 +170,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     dataset = train_loader.dataset.name
     clip_gradient = float(train_params['clip_gradient'])
     has_belief = hasattr(model.module, 'compare_belief')
+    has_eff = hasattr(model.module, 'compute_efficiency_loss')
+    n_extra_losses = sum([has_belief, has_eff])
 
     # Switch to train mode
     model.train()
@@ -191,6 +196,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         noun_top5 = AverageMeter()
     if has_belief:
         belief_losses = AverageMeter()
+    if has_eff:
+        eff_losses = AverageMeter()
 
     # Training loop
     end = time.time()
@@ -203,14 +210,18 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
             sample[k] = sample[k].to(device)
 
         # Forward
-        if has_belief:
-            output, loss_belief = model(sample)
-            # Average across multiple devices, if necessary
-            if __DEBUG_NOBELIEF__:
-                loss_belief = torch.Tensor([-1.0])
-                loss_belief.requires_grad = False
-            else:
-                loss_belief = loss_belief.mean()
+        if n_extra_losses > 0:
+            if has_belief:
+                output, loss_belief = model(sample)
+                # Average across multiple devices, if necessary
+                if __DEBUG_NOBELIEF__:
+                    loss_belief = torch.Tensor([-1.0])
+                    loss_belief.requires_grad = False
+                else:
+                    loss_belief = loss_belief.mean()
+            if has_eff:
+                output, loss_eff = model(sample)
+                loss_eff = loss_eff.mean()
         else:
             output = model(sample)
 
@@ -225,12 +236,14 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
             else:
                 target = target.to(device)
 
-            # if has_belief:
+            loss = criterion(output, target)  # accuracy loss
             if has_belief and (not __DEBUG_NOBELIEF__):
-                loss = 0.5*(criterion(output, target) + loss_belief)
+                loss += loss_belief
                 belief_losses.update(loss_belief.item(), batch_size)
-            else:
-                loss = criterion(output, target)
+            if has_eff:
+                loss += loss_eff
+                eff_losses.update(loss_eff.item(), batch_size)
+            loss = loss / (n_extra_losses + 1)
             prec1, prec5 = accuracy(output, target, topk=(1, 5))
         else:
             # Repeat the target for all frame if necessary
@@ -245,12 +258,15 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
 
             loss_verb = criterion(output[0], target['verb'])
             loss_noun = criterion(output[1], target['noun'])
-            # if has_belief:
+            loss = loss_verb + loss_noun  # accuracy loss
             if has_belief and (not __DEBUG_NOBELIEF__):
-                loss = (loss_verb + loss_noun + loss_belief) / 3.0
+                loss += loss_belief
                 belief_losses.update(loss_belief.item(), batch_size)
-            else:
-                loss = 0.5 * (loss_verb + loss_noun)
+            if has_eff:
+                loss += loss_eff
+                eff_losses.update(loss_eff.item(), batch_size)
+            loss = loss / (n_extra_losses + 2)
+
             verb_losses.update(loss_verb.item(), batch_size)
             noun_losses.update(loss_noun.item(), batch_size)
 
@@ -305,6 +321,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                 })
             if has_belief:
                 log_content.update({'belief_losses': belief_losses})
+            if has_eff:
+                log_content.update({'eff_losses': eff_losses})
 
             _log_message('training', sum_writer, run_iter, log_content, msg_prefix)
 
@@ -320,6 +338,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                             'train_noun_acc': noun_top1.avg}
     if has_belief:
         training_metrics.update({'train_belief_loss': belief_losses.avg})
+    if has_eff:
+        training_metrics.update({'train_eff_loss': eff_losses.avg})
     return training_metrics
 
 
@@ -328,6 +348,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
     """
     dataset = val_loader.dataset.name
     has_belief = hasattr(model.module, 'compare_belief')
+    has_eff = hasattr(model.module, 'compute_efficiency_loss')
+    n_extra_losses = sum([has_belief, has_eff])
 
     # Swith to eval mode
     model.eval()
@@ -347,6 +369,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             noun_top5 = AverageMeter()
         if has_belief:
             belief_losses = AverageMeter()
+        if has_eff:
+            eff_losses = AverageMeter()
 
         # Validation loop
         end = time.time()
@@ -356,13 +380,17 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                 sample[k] = sample[k].to(device)
 
             # Forward
-            if has_belief:
-                output, loss_belief = model(sample)
-                if __DEBUG_NOBELIEF__:
-                    loss_belief = torch.Tensor([-1.0])
-                    loss_belief.requires_grad = False
-                else:
-                    loss_belief = loss_belief.mean()
+            if n_extra_losses > 0:
+                if has_belief:
+                    output, loss_belief = model(sample)
+                    if __DEBUG_NOBELIEF__:
+                        loss_belief = torch.Tensor([-1.0])
+                        loss_belief.requires_grad = False
+                    else:
+                        loss_belief = loss_belief.mean()
+                if has_eff:
+                    output, loss_eff = model(sample)
+                    loss_eff = loss_eff.mean()
             else:
                 output = model(sample)
 
@@ -372,12 +400,14 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                 if output.ndim == 3:
                     output = output[:, -1, :]
                 target = target.to(device)
-                # if has_belief:
+                loss = criterion(output, target)  # accuracy loss
                 if has_belief and (not __DEBUG_NOBELIEF__):
-                    loss = 0.5*(criterion(output, target) + loss_belief)
+                    loss += loss_belief
                     belief_losses.update(loss_belief.item(), batch_size)
-                else:
-                    loss = criterion(output, target)
+                if has_eff:
+                    loss += loss_eff
+                    eff_losses.update(loss_eff.item(), batch_size)
+                loss = loss / (n_extra_losses + 1)
                 prec1, prec5 = accuracy(output, target, topk=(1, 5))
             else:
                 # Pick the last frame to validate
@@ -386,12 +416,15 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                 target = {k: v.to(device) for k, v in target.items()}
                 loss_verb = criterion(output[0], target['verb'])
                 loss_noun = criterion(output[1], target['noun'])
-                # if has_belief:
+                loss = loss_verb + loss_noun  # accuracy loss
                 if has_belief and (not __DEBUG_NOBELIEF__):
-                    loss = (loss_verb + loss_noun + loss_belief) / 3.0
+                    loss += loss_belief
                     belief_losses.update(loss_belief.item(), batch_size)
-                else:
-                    loss = 0.5 * (loss_verb + loss_noun)
+                if has_eff:
+                    loss += loss_eff
+                    eff_losses.update(loss_eff.item(), batch_size)
+                loss = loss / (n_extra_losses + 2)
+
                 verb_losses.update(loss_verb.item(), batch_size)
                 noun_losses.update(loss_noun.item(), batch_size)
 
@@ -428,6 +461,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             })
         if has_belief:
             log_content.update({'belief_losses': belief_losses})
+        if has_eff:
+            log_content.update({'eff_losses': eff_losses})
         _log_message('validation', sum_writer, run_iter, log_content, msg_prefix)
 
         # Collect validation metrics
@@ -442,6 +477,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                            'val_noun_acc': noun_top1.avg}
         if has_belief:
             val_metrics.update({'val_belief_loss': belief_losses.avg})
+        if has_eff:
+            val_metrics.update({'val_eff_loss': eff_losses.avg})
         return val_metrics
 
 
@@ -467,6 +504,8 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
             sum_writer.add_scalars('data/noun/prec/top5', {phase: data['noun_top5'].avg}, run_iter)
             if 'belief_losses' in data.keys():
                 sum_writer.add_scalars('data/belief/loss', {phase: data['belief_losses'].avg}, run_iter)
+            if 'eff_losses' in data.keys():
+                sum_writer.add_scalars('data/eff/loss', {phase: data['eff_losses'].avg}, run_iter)
 
         msg += '  Verb Loss {:.4f}, Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(
             data['verb_losses'].avg, data['verb_top1'].avg, data['verb_top5'].avg)
@@ -477,5 +516,7 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
 
     if 'belief_losses' in data.keys():
         msg += '\n  Belief Loss {:.4f}'.format(data['belief_losses'].avg)
+    if 'eff_losses' in data.keys():
+        msg += '\n  Eff Loss {:.4f}'.format(data['eff_losses'].avg)
 
     logger.info(msg)

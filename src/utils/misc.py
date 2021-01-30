@@ -18,6 +18,7 @@ from src.utils.transforms import (
     Stack, ToTorchFormatTensor
 )
 from src.utils import transforms_rgbds
+from tools.complexity import is_supported_instance, flops_to_string, get_model_parameters_number
 import src.utils.logging as logging
 
 logger = logging.get_logger(__name__)
@@ -357,3 +358,57 @@ class MiscUtils:
                 wgt_sum += tw
         result /= wgt_sum
         return result
+
+    @staticmethod
+    def collect_flops(model, units='GMac', precision=3):
+        """Wrapper to collect flops and number of parameters at each layer"""
+        total_flops = model.compute_average_flops_cost()
+
+        def accumulate_flops(self):
+            if is_supported_instance(self):
+                return self.__flops__ / model.__batch_counter__
+            else:
+                sum = 0
+                for m in self.children():
+                    sum += m.accumulate_flops()
+                return sum
+
+        def flops_repr(self):
+            accumulated_flops_cost = self.accumulate_flops()
+            return ', '.join([flops_to_string(accumulated_flops_cost, units=units, precision=precision),
+                              '{:.3%} MACs'.format(accumulated_flops_cost / total_flops),
+                              self.original_extra_repr()])
+
+        def add_extra_repr(m):
+            m.accumulate_flops = accumulate_flops.__get__(m)
+            flops_extra_repr = flops_repr.__get__(m)
+            if m.extra_repr != flops_extra_repr:
+                m.original_extra_repr = m.extra_repr
+                m.extra_repr = flops_extra_repr
+                assert m.extra_repr != m.original_extra_repr
+
+        def del_extra_repr(m):
+            if hasattr(m, 'original_extra_repr'):
+                m.extra_repr = m.original_extra_repr
+                del m.original_extra_repr
+            if hasattr(m, 'accumulate_flops'):
+                del m.accumulate_flops
+
+        model.apply(add_extra_repr)
+        # print(model, file=ost)
+
+        # Retrieve flops and param at each layer and sub layer (2 levels)
+        flops_dict, param_dict = {}, {}
+        for i in model._modules.keys():
+            item = model._modules[i]
+            if isinstance(model._modules[i], torch.nn.modules.container.Sequential):
+                for j in model._modules[i]._modules.keys():
+                    key = '{}-{}'.format(i, j)
+                    flops_dict[key] = item._modules[j].accumulate_flops()
+                    param_dict[key] = get_model_parameters_number(item._modules[j])
+            else:
+                flops_dict[i] = item.accumulate_flops()
+                param_dict[i] = get_model_parameters_number(item)
+
+        model.apply(del_extra_repr)
+        return flops_dict, param_dict
