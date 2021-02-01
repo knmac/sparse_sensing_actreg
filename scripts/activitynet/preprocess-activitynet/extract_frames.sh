@@ -9,9 +9,13 @@ for pth in $IN_DIR/*; do
     
     output="$OUT_DIR/$vid"
     mkdir -p $output
-    ffmpeg \
-        -i "$pth" \
-        -vf 'scale=-2:256' \
-        -q:v 4 \
-        "$output/%4d.jpg"
+    # Extract if the output dir is empty -> allow resuming
+    if [ -z "$(ls -A $output)" ]; then
+        echo $vid
+        ffmpeg \
+            -i "$pth" \
+            -vf 'scale=-2:256' \
+            -q:v 4 \
+            "$output/%4d.jpg"
+    fi
 done
