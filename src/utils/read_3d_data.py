@@ -312,7 +312,8 @@ def read_corpus(path):
     # Determine which video frame is used to create the corpus
     fname = os.path.join(path, 'Corpus', 'CameraToBuildCorpus3.txt')
     assert os.path.isfile(fname)
-    content = open(fname, 'r').read().splitlines()
+    with open(fname, 'r') as fin:
+        content = fin.read().splitlines()
 
     vCorpus_cid_Lcid_Lfid = np.zeros([len(content), 3], dtype=int)
     for jj, line in enumerate(content):
@@ -348,7 +349,8 @@ def read_intrinsic_extrinsic(path, view_id=0, startF=0, stopF=None):
     # Read intrinsic parameters
     fname = os.path.join(path, 'Intrinsic_{:04d}.txt'.format(view_id))
     assert os.path.isfile(fname), 'Cannot find {}...'.format(fname)
-    content = open(fname, 'r').read().splitlines()
+    with open(fname, 'r') as fin:
+        content = fin.read().splitlines()
 
     # Automatically set the stopF if not given
     if stopF is None:
@@ -384,20 +386,24 @@ def read_intrinsic_extrinsic(path, view_id=0, startF=0, stopF=None):
             vInfo.VideoInfo[frameID].LensModel = LensType
             vInfo.VideoInfo[frameID].ShutterModel = ShutterModel
 
-        if (LensType == RADIAL_TANGENTIAL_PRISM):
-            r0, r1, r2 = float(toks[10]), float(toks[11]), float(toks[12])
-            t0, t1 = float(toks[13]), float(toks[14])
-            p0, p1 = float(toks[15]), float(toks[16])
-            if startF <= frameID <= stopF:
+            if (LensType == RADIAL_TANGENTIAL_PRISM):
+                r0, r1, r2 = float(toks[10]), float(toks[11]), float(toks[12])
+                t0, t1 = float(toks[13]), float(toks[14])
+                p0, p1 = float(toks[15]), float(toks[16])
+
                 distortion = np.array([r0, r1, r2, t0, t1, p0, p1])
                 vInfo.VideoInfo[frameID].distortion = distortion
+
+        if frameID > stopF:
+            break
 
     # -------------------------------------------------------------------------
     # Read extrinsic parameters
     fname = os.path.join(path, 'CamPose_{:04d}.txt'.format(view_id))
     rt = np.zeros(6, dtype=float)
 
-    content = open(fname, 'r').read().splitlines()
+    with open(fname, 'r') as fin:
+        content = fin.read().splitlines()
     for line in content:
         toks = line.split(' ')
 
@@ -430,6 +436,9 @@ def read_intrinsic_extrinsic(path, view_id=0, startF=0, stopF=None):
                                           vInfo.VideoInfo[frameID].R,
                                           principal)
             vInfo.VideoInfo[frameID].principleRayDir = principleRayDir
+
+        if frameID > stopF:
+            break
 
     return vInfo
 
@@ -565,7 +574,6 @@ def read_inliner(fname):
 
     Args:
         fname: (str) path containing the data
-        fid: (int) frame id
 
     Returns:
         ptid: (list) list of point id
@@ -574,7 +582,8 @@ def read_inliner(fname):
     """
     assert os.path.isfile(fname)
 
-    content = open(fname).read().splitlines()
+    with open(fname, 'r') as fin:
+        content = fin.read().splitlines()
     n_pts = len(content)
     ptid = np.zeros(n_pts, dtype=np.int)
     pt3d = {}
