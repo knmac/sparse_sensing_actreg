@@ -291,7 +291,7 @@ class EpicKitchenDataset(BaseDataset):
             rbf_opts = {'function': 'linear', 'epsilon': 2.0}
             depth, projection = project_depth(
                 ptid, pt3d, pt2d, cam_center, principle_ray_dir,
-                height=1080, width=1920,
+                height=frame_info.height, width=frame_info.width,
                 new_h=rgb.shape[0], new_w=rgb.shape[1])
 
             # Normalize depth to the scale in milimeters
