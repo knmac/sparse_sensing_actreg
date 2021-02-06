@@ -5,5 +5,7 @@ model_params:
     san_kernels: [3, 7, 7, 7, 7]
     san_remove_avgpool: True  # remove the avgpool layer for convlstm
     san_pretrained_weights: 
-        RGB: 'pretrained/san19_epic_07-10/rgb.model'
-        Spec: 'pretrained/san19_epic_07-10/spec.model'
+        #RGB: 'pretrained/san19_epic_07-10/rgb.model'
+        #Spec: 'pretrained/san19_epic_07-10/spec.model'
+        RGB: 'pretrained/finetuned/san19_epic_224/rgb.model'
+        Spec: 'pretrained/finetuned/san19_epic_224/spec.model'
