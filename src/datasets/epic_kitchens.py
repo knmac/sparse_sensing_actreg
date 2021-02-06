@@ -12,6 +12,7 @@ import pandas as pd
 from numpy.random import randint
 from PIL import Image
 from epic_kitchens.meta import training_labels, test_timestamps
+from subprocess import Popen, PIPE
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -240,7 +241,7 @@ class EpicKitchenDataset(BaseDataset):
         elif modality == 'RGBDS':
             return self._load_rgbds(record, idx)
 
-    def _load_rgbds(self, record, idx):
+    def _load_rgbds(self, record, idx, use_cpp_bin=False):
         """Load data with 5 channels
 
         The first 3 channels are similar to RGB modality
@@ -273,37 +274,68 @@ class EpicKitchenDataset(BaseDataset):
         rgb = np.array(rgb)
 
         # The 4th channel: depth ----------------------------------------------
-        inliers_pth = os.path.join(self.depth_path,
-                                   record.untrimmed_video_name,
-                                   self.depth_tmpl.format(idx_untrimmed-1))
+        inliers_pth = os.path.join(
+            self.depth_path, record.untrimmed_video_name,
+            self.depth_tmpl.format(idx_untrimmed-1))
+        corpus_pth = os.path.join(
+            self.depth_path, record.untrimmed_video_name, '0')
+        normalize_point_pth = os.path.join(
+            self.depth_path, record.untrimmed_video_name, '0', 'Points.txt')
+
         if os.path.isfile(inliers_pth):
-            ptid, pt3d, pt2d = read_inliner(inliers_pth)
-
-            frame_info = read_intrinsic_extrinsic(
-                os.path.join(self.depth_path, record.untrimmed_video_name, '0'),
-                startF=idx_untrimmed-1, stopF=idx_untrimmed-1,
-            ).VideoInfo[idx_untrimmed-1]
-
-            cam_center = frame_info.camCenter
-            principle_ray_dir = frame_info.principleRayDir
-
-            # Find depth wrt to camera coordinates
-            rbf_opts = {'function': 'linear', 'epsilon': 2.0}
-            depth, projection = project_depth(
-                ptid, pt3d, pt2d, cam_center, principle_ray_dir,
-                height=frame_info.height, width=frame_info.width,
-                new_h=rgb.shape[0], new_w=rgb.shape[1])
-
-            # Normalize depth to the scale in milimeters
-            normalize_point_pth = os.path.join(
-                self.depth_path, record.untrimmed_video_name, '0', 'Points.txt')
+            # Get sfm_dist and real_dist
             assert os.path.isfile(normalize_point_pth)
-            content = open(normalize_point_pth).read().splitlines()
+            with open(normalize_point_pth, 'r') as fp:
+                content = fp.read().splitlines()
             sfm_dist, real_dist = content[-1].split(' ')
             sfm_dist, real_dist = float(sfm_dist), float(real_dist)
-            depth = depth / sfm_dist * real_dist
+            new_h, new_w = rgb.shape[0], rgb.shape[1]
+
+            if use_cpp_bin:
+                cmd = [
+                    "./src/cpp_utils/read_3d_data/build/read_3d_data",
+                    inliers_pth,
+                    corpus_pth, "0", str(idx_untrimmed-1), str(idx_untrimmed-1),
+                    str(new_h), str(new_w), str(sfm_dist), str(real_dist),
+                ]
+                proc = Popen(cmd, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+                out, err = proc.communicate()
+
+                # Parse output to python object
+                tokens = out.split()
+                ptid = np.zeros(len(tokens), dtype=np.int)
+                depth = np.zeros([new_h, new_w])
+                projection = {}
+                pt3d = {}
+                for ii, item in enumerate(tokens):
+                    k, v, u, d, pt3d_x, pt3d_y, pt3d_z = item.split(',')
+                    k, v, u, d = int(k), int(v), int(u), float(d)
+                    ptid[ii] = k
+                    depth[v, u] = d
+                    projection[k] = (u, v)
+                    pt3d[k] = [pt3d_x, pt3d_y, pt3d_z]
+                pt3d = {k: np.array(v).astype(np.float32) for k, v in pt3d.items()}
+            else:
+                ptid, pt3d, pt2d = read_inliner(inliers_pth)
+
+                frame_info = read_intrinsic_extrinsic(
+                    corpus_pth, startF=idx_untrimmed-1, stopF=idx_untrimmed-1,
+                ).VideoInfo[idx_untrimmed-1]
+
+                cam_center = frame_info.camCenter
+                principle_ray_dir = frame_info.principleRayDir
+
+                # Find depth wrt to camera coordinates
+                depth, projection = project_depth(
+                    ptid, pt3d, pt2d, cam_center, principle_ray_dir,
+                    height=frame_info.height, width=frame_info.width,
+                    new_h=new_h, new_w=new_w)
+
+                # Normalize depth to the scale in milimeters
+                depth = depth / sfm_dist * real_dist
 
             # Interpolation
+            rbf_opts = {'function': 'linear', 'epsilon': 2.0}
             depth = rbf_interpolate(depth, rbf_opts=rbf_opts)
 
             # Bilateral filtering with reference image
