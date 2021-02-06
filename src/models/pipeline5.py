@@ -22,12 +22,12 @@ class Pipeline5(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
                  new_length, attention_layer, attention_dim, dropout,
                  high_feat_model_cfg, low_feat_model_cfg, spatial_sampler_cfg,
-                 actreg_model_cfg, feat_process_type, reduce_dim=None):
+                 actreg_model_cfg, feat_process_type, using_cupy, reduce_dim=None):
         super(Pipeline5, self).__init__(device)
 
         # Turn off cudnn benchmark because of different input size
         # This is only effective whenever pipeline5 is used
-        torch.backends.cudnn.benchmark = False
+        # torch.backends.cudnn.benchmark = False
 
         # Save the input arguments
         self.num_class = num_class
@@ -38,6 +38,7 @@ class Pipeline5(BaseModel):
         self.attention_dim = attention_dim
         self.dropout = dropout
         self.feat_process_type = feat_process_type  # [reduce, add, cat]
+        self.using_cupy = using_cupy
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
@@ -46,6 +47,7 @@ class Pipeline5(BaseModel):
         params.update({
             'new_length': self.new_length,
             'modality': self.modality,
+            'using_cupy': self.using_cupy,
         })
         self.low_feat_model = model_factory.generate(name, device=device, **params)
 
@@ -54,6 +56,7 @@ class Pipeline5(BaseModel):
         params.update({
             'new_length': self.new_length,
             'modality': ['RGB'],  # Remove spec because low_model already has it
+            'using_cupy': self.using_cupy,
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
 
