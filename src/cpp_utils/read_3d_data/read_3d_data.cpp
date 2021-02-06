@@ -291,7 +291,8 @@ int project_depth(vector<int> ptid, Point3d *pt3d, Point2d *pt2d,
 
         // print to output stream
         cout << setprecision(20)
-             << k << "," << v << "," << u << "," << depth << " ";
+             << k << "," << v << "," << u << "," << depth << ","
+             << pt3d[k].x << "," << pt3d[k].y << "," << pt3d[k].z << " ";
     }
 
     return 0;

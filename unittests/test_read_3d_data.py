@@ -53,7 +53,7 @@ def python_code():
     sfm_dist, real_dist = float(sfm_dist), float(real_dist)
     depth = depth / sfm_dist * real_dist
 
-    return depth, projection
+    return ptid, pt3d, depth, projection
 
 
 def cpp_code():
@@ -75,26 +75,34 @@ def cpp_code():
 
     # Parse output to python object
     tokens = out.split()
+    ptid = np.zeros(len(tokens), dtype=np.int)
     depth = np.zeros([new_h, new_w])
     projection = {}
-    for item in tokens:
-        k, v, u, d = item.split(',')
+    pt3d = {}
+    for ii, item in enumerate(tokens):
+        k, v, u, d, pt3d_x, pt3d_y, pt3d_z = item.split(',')
         k, v, u, d = int(k), int(v), int(u), float(d)
+        ptid[ii] = k
         depth[v, u] = d
         projection[k] = (u, v)
-    return depth, projection
+        pt3d[k] = [pt3d_x, pt3d_y, pt3d_z]
+    return ptid, pt3d, depth, projection
 
 
 class TestRead3D(unittest.TestCase):
     def test(self):
         st = time.time()
-        depth1, projection1 = python_code()
+        ptid1, pt3d1, depth1, projection1 = python_code()
         print('python code: {:.04f}s'.format(time.time() - st))
 
         st = time.time()
-        depth2, projection2 = cpp_code()
+        ptid2, pt3d2, depth2, projection2 = cpp_code()
+        pt3d2 = {k: np.array(v).astype(np.float32) for k, v in pt3d2.items()}
         print('cpp code: {:.04f}s'.format(time.time() - st))
 
+        assert (np.all(ptid1 == ptid2))
+        for k in ptid1:
+            assert np.all(pt3d1[k] == pt3d2[k])
         assert (depth1 - depth2).max() < 1e-3
         assert projection1 == projection2
 
