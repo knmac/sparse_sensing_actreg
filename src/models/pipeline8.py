@@ -229,7 +229,7 @@ class Pipeline8(BaseModel):
         spec = spec.view((-1, self.num_segments, 1) + spec.size()[-2:])
 
         # =====================================================================
-        # Prescan by batch before hand
+        # Extract features by batch (skipped frames won't get counted)
         # =====================================================================
         # First half of feature low rgb feat --> (B, T, C, H, W)
         prescan_feat = self.first_half_forward(
@@ -246,6 +246,15 @@ class Pipeline8(BaseModel):
         assert attn is not None, 'Fail to retrieve attention'
         attn = attn.view((-1, self.num_segments) + attn.size()[-3:])
 
+        # Second half of RGB low
+        low_feat = self.second_half_forward(
+            prescan_feat.view((-1,)+prescan_feat.size()[-3:]), self.low_feat_model.rgb)
+        low_feat = low_feat.view(-1, self.num_segments, low_feat.shape[-1])
+
+        # Spec
+        spec_feat = self.low_feat_model.spec(spec.view((-1,)+spec.size()[-3:]))
+        spec_feat = spec_feat.view(-1, self.num_segments, spec_feat.shape[-1])
+
         # =====================================================================
         # Process each sample separately because skipping is non-uniform across
         # batch domain
@@ -261,8 +270,8 @@ class Pipeline8(BaseModel):
             # Warm up using the first frame -----------------------------------
             st = time.time()
             result_dict = self.warmup(
-                prescan_feat[i, 0].unsqueeze(0), attn[i, 0].unsqueeze(0),
-                spec[i, 0].unsqueeze(0), rgb_high[i, 0].unsqueeze(0),
+                low_feat[i, 0].unsqueeze(0), attn[i, 0].unsqueeze(0),
+                spec_feat[i, 0].unsqueeze(0), rgb_high[i, 0].unsqueeze(0),
             )
             actreg_mem = result_dict['actreg_mem']
             hallu_mem = result_dict['hallu_mem']
@@ -281,8 +290,8 @@ class Pipeline8(BaseModel):
             for t in range(1, self.num_segments):
                 st = time.time()
                 result_dict = self.forward_frame(
-                    prescan_feat[i, t].unsqueeze(0), attn[i, t].unsqueeze(0),
-                    spec[i, t].unsqueeze(0), rgb_high[i, t].unsqueeze(0),
+                    low_feat[i, t].unsqueeze(0), attn[i, t].unsqueeze(0),
+                    spec_feat[i, t].unsqueeze(0), rgb_high[i, t].unsqueeze(0),
                     old_pred=pred, old_hallu=hallu,
                     actreg_mem=actreg_mem, hallu_mem=hallu_mem,
                     remaining_skips=remaining_skips,
@@ -388,14 +397,12 @@ class Pipeline8(BaseModel):
 
         return loss_eff
 
-    def warmup(self, prescan_feat, attn, spec, rgb_high):
+    def warmup(self, low_feat, attn, spec_feat, rgb_high):
         """Warm up to generate memory and avoid skipping the 1st frame. Similar
         to forward_frame(), but without temporal_sampler and using the full
         pipeline.
 
         Args:
-            prescan_feat: feature from the first half of the network, using low
-                resolution input
             attn: attention wrt the prescan features
             spec: spectrogram input of time t
             rgb_high: high resolution rgb input of time t
@@ -414,16 +421,10 @@ class Pipeline8(BaseModel):
         batch_size = rgb_high.shape[0]
         assert batch_size == 1, 'Only support batch_size 1 when forward a frame'
 
-        # Hallucinate
+        # Hallucinate ---------------------------------------------------------
         hallu, hallu_mem = self.hallu_model(attn.unsqueeze(dim=1), None)
         assert hallu.shape[1] == 1
         hallu = hallu[:, 0]
-
-        # Second half of RGB low
-        low_feat = self.second_half_forward(prescan_feat, self.low_feat_model.rgb)
-
-        # Spec
-        spec_feat = self.low_feat_model.spec(spec)
 
         # Spatial sampler -----------------------------------------------------
         # Compute bboxes -> (B, top_k, 4)
@@ -467,7 +468,7 @@ class Pipeline8(BaseModel):
         }
         return output
 
-    def forward_frame(self, prescan_feat, attn, spec, rgb_high,
+    def forward_frame(self, low_feat, attn, spec_feat, rgb_high,
                       old_pred=None, old_hallu=None,
                       actreg_mem=None, hallu_mem=None,
                       remaining_skips=0):
@@ -565,10 +566,10 @@ class Pipeline8(BaseModel):
         # Case 2: not skipping the current frame
         # =====================================================================
         # Second half of RGB low
-        low_feat = self.second_half_forward(prescan_feat, self.low_feat_model.rgb)
+        # low_feat = self.second_half_forward(prescan_feat, self.low_feat_model.rgb)
 
         # Spec
-        spec_feat = self.low_feat_model.spec(spec)
+        # spec_feat = self.low_feat_model.spec(spec)
 
         # Spatial sampler -----------------------------------------------------
         # Compute bboxes -> (B, top_k, 4)
