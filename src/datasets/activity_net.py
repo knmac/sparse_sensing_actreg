@@ -63,12 +63,13 @@ class ActivityNetDataset(BaseDataset):
         while not os.path.exists(full_path):
             err_cnt += 1
 
-            if err_cnt > 3:
+            if err_cnt > 3 and not self.remove_missing:
                 logger.info('Something wrong with the dataloader to get items')
                 logger.info('Check your data path. Exit...')
                 raise
 
-            logger.info('Not found: {}'.format(full_path))
+            if not self.remove_missing:
+                logger.info('Not found: {}'.format(full_path))
 
             # Try another video
             index = np.random.randint(len(self.video_list))

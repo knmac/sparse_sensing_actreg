@@ -7,3 +7,4 @@ dataset_params:
     visual_path: 'data/ActivityNet/frames_256'
     image_tmpl:
         RGB: '{:04d}.jpg'
+    remove_missing: True
