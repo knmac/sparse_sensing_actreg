@@ -133,8 +133,17 @@ class ActivityNetDataset(BaseDataset):
 
     def get(self, record, indices):
         images = list()
-        for seg_ind in indices:
-            images.extend(self._load_image(record.path, int(seg_ind)))
+        for i, seg_ind in enumerate(indices):
+            try:
+                images.extend(self._load_image(record.path, int(seg_ind)))
+            except FileNotFoundError:
+                assert i > 0, 'Error reading: {} at {}'.format(record._data, indices)
+                for j in range(i, len(indices)):
+                    indices[j] = indices[i-1]
+                pth = os.path.join(self.visual_path, record.path)
+                record._data[1] = str(len(os.listdir(pth)))
+
+                images.extend(self._load_image(record.path, indices[i-1]))
 
         process_data = self.transform(images)
         # TODO: resize to other resolutions can go here
