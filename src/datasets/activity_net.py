@@ -94,7 +94,7 @@ class ActivityNetDataset(BaseDataset):
         if (self.mode != 'test') or (self.remove_missing):
             tmp = [item for item in tmp if int(item[1]) >= 3]
 
-        self.video_list = [ActivityVideoRecord(item) for item in tmp]
+        self.video_list = [ActivityVideoRecord(item, self.visual_path) for item in tmp]
 
     def _load_image(self, directory, idx):
         try:
@@ -142,12 +142,17 @@ class ActivityNetDataset(BaseDataset):
 
 
 class ActivityVideoRecord(VideoRecord):
-    def __init__(self, row):
+    def __init__(self, row, visual_path):
         self._data = row
         self._labels = torch.tensor([-1, -1, -1])
         labels = sorted(list(set([int(x) for x in self._data[2:]])))
         for i, l in enumerate(labels):
             self._labels[i] = l
+
+        self._data[1] = int(self._data[1])
+        vid_dir = os.path.join(visual_path, self._data[0])
+        if os.path.isdir(vid_dir):
+            self._data[1] = len(os.listdir(vid_dir))
 
     @property
     def path(self):
@@ -155,7 +160,7 @@ class ActivityVideoRecord(VideoRecord):
 
     @property
     def num_frames(self):
-        return int(self._data[1])
+        return self._data[1]
 
     @property
     def label(self, retrieve_single=True):
