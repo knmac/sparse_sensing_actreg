@@ -157,7 +157,7 @@ class SANMulti(BaseModel):
                         self._load_weight_later.append(m)
                 else:
                     logger.info('Pretrained weights given but not found: {}'.format(
-                        self.pretrained_weights[m]))
+                        self.san_pretrained_weights[m]))
                     os._exit(-1)
             else:
                 logger.info('Not loading pretrained model for modality {}!'.format(m))
