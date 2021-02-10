@@ -138,7 +138,7 @@ class TestData(unittest.TestCase):
         # Prepare some extra parameters
         modality = ['RGBDS', 'Spec']
         num_segments = 3
-        input_mean = {'RGBDS': [104, 117, 128, 127, 127]}
+        input_mean = {'RGBDS': [104, 117, 128, 128, 128]}
         input_std = {'RGBDS': [1], 'Spec': [1]}
         scale_size = {'RGBDS': 256, 'Spec': 256}
         crop_size = {'RGBDS': 224, 'Spec': 224}

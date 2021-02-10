@@ -144,7 +144,7 @@ class SANMulti(BaseModel):
             elif m == 'RGB':
                 self.input_mean[m] = [104, 117, 128]
             elif m == 'RGBDS':
-                self.input_mean[m] = [104, 117, 128, 127, 127]
+                self.input_mean[m] = [104, 117, 128, 128, 128]
 
             # Load pretrained weights
             if self.san_pretrained_weights[m] is not None:
