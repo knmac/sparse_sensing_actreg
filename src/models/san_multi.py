@@ -73,6 +73,7 @@ class SANMulti(BaseModel):
         # Prepare the flow and spec modalities by replacing the 1st layer
         is_flow = any(m == 'Flow' for m in self.modality)
         is_spec = any(m == 'Spec' for m in self.modality)
+        is_rgbds = any(m == 'RGBS' for m in self.modality)
         if is_flow:
             logger.info('Converting the ImageNet model to a flow init model')
             self.base_model['Flow'] = self._construct_flow_model(self.base_model['Flow'])
@@ -81,6 +82,10 @@ class SANMulti(BaseModel):
             logger.info('Converting the ImageNet model to a spectrogram init model')
             self.base_model['Spec'] = self._construct_spec_model(self.base_model['Spec'])
             logger.info('Done. Spec model ready.')
+        if is_spec:
+            logger.info('Converting the ImageNet model to a 5 channel init model')
+            self.base_model['Spec'] = self._construct_rgbds_model(self.base_model['Spec'])
+            logger.info('Done. RGBDS model ready.')
 
         # Load the weights if could not load before
         if len(self._load_weight_later) != 0:
@@ -206,6 +211,35 @@ class SANMulti(BaseModel):
         new_kernels = params[0].detach().mean(dim=1, keepdim=True).contiguous()
 
         new_conv = nn.Conv2d(self.new_length['Spec'], conv_layer.out_channels,
+                             conv_layer.kernel_size, conv_layer.stride, conv_layer.padding,
+                             bias=True if len(params) == 2 else False)
+        new_conv.weight.data = new_kernels
+        if len(params) == 2:
+            new_conv.bias.data = params[1].detach()  # add bias if neccessary
+        layer_name = list(container.state_dict().keys())[0][:-7]  # remove .weight suffix to get the layer name
+
+        # replace the first convolution layer
+        setattr(container, layer_name, new_conv)
+
+        return base_model
+
+    def _construct_rgbds_model(self, base_model):
+        """Convert ImageNet model to spectrogram init model"""
+        # modify the convolution layers
+        # Torch models are usually defined in a hierarchical way.
+        # nn.modules.children() return all sub modules in a DFS manner
+        modules = list(self.base_model['RGBDS'].modules())
+        first_conv_idx = list(filter(lambda x: isinstance(modules[x], nn.Conv2d), list(range(len(modules)))))[0]
+        conv_layer = modules[first_conv_idx]
+        container = modules[first_conv_idx - 1]
+
+        # modify parameters, assume the first blob contains the convolution kernels
+        params = [x.clone() for x in conv_layer.parameters()]
+        kernel_mean = params[0].detach().mean(dim=1, keepdim=True)
+        new_kernels = torch.cat([params[0].detach(), kernel_mean, kernel_mean], dim=1).contiguous()
+        # new_kernels = params[0].detach().mean(dim=1, keepdim=True).contiguous()
+
+        new_conv = nn.Conv2d(5*self.new_length['RGBDS'], conv_layer.out_channels,
                              conv_layer.kernel_size, conv_layer.stride, conv_layer.padding,
                              bias=True if len(params) == 2 else False)
         new_conv.weight.data = new_kernels
