@@ -264,7 +264,34 @@ class EpicKitchenDataset(BaseDataset):
             ├── semantic_[video_name].data
             └── ...
         """
+        # Prepare the file paths and load neighbors if not found---------------
         idx_untrimmed = record.start_frame + idx
+        found = False
+        _offset = 0
+        while idx_untrimmed <= record.end_frame:
+            idx_untrimmed = record.start_frame + idx + _offset
+            inliers_pth = os.path.join(
+                self.depth_path, record.untrimmed_video_name,
+                self.depth_tmpl.format(idx_untrimmed-1))
+            if os.path.isfile(inliers_pth):
+                found = True
+                break
+            _offset += 1
+
+        _offset = 0
+        while idx_untrimmed >= record.start_frame:
+            if found:
+                break
+            idx_untrimmed = record.start_frame + idx - _offset
+            inliers_pth = os.path.join(
+                self.depth_path, record.untrimmed_video_name,
+                self.depth_tmpl.format(idx_untrimmed-1))
+            if os.path.isfile(inliers_pth):
+                found = True
+                break
+            _offset += 1
+
+        assert found, 'missing depth keyframe for the whole segment'
 
         # Three first 3 channels: RGB -----------------------------------------
         rgb = Image.open(os.path.join(self.visual_path,
@@ -274,113 +301,114 @@ class EpicKitchenDataset(BaseDataset):
         rgb = np.array(rgb)
 
         # The 4th channel: depth ----------------------------------------------
-        inliers_pth = os.path.join(
-            self.depth_path, record.untrimmed_video_name,
-            self.depth_tmpl.format(idx_untrimmed-1))
+        # inliers_pth = os.path.join(
+        #     self.depth_path, record.untrimmed_video_name,
+        #     self.depth_tmpl.format(idx_untrimmed-1))
         corpus_pth = os.path.join(
             self.depth_path, record.untrimmed_video_name, '0')
         normalize_point_pth = os.path.join(
             self.depth_path, record.untrimmed_video_name, '0', 'Points.txt')
 
-        if os.path.isfile(inliers_pth):
-            # Get sfm_dist and real_dist
-            assert os.path.isfile(normalize_point_pth)
-            with open(normalize_point_pth, 'r') as fp:
-                content = fp.read().splitlines()
-            sfm_dist, real_dist = content[-1].split(' ')
-            sfm_dist, real_dist = float(sfm_dist), float(real_dist)
-            new_h, new_w = rgb.shape[0], rgb.shape[1]
+        # Get sfm_dist and real_dist
+        assert os.path.isfile(normalize_point_pth)
+        with open(normalize_point_pth, 'r') as fp:
+            content = fp.read().splitlines()
+        sfm_dist, real_dist = content[-1].split(' ')
+        sfm_dist, real_dist = float(sfm_dist), float(real_dist)
+        new_h, new_w = rgb.shape[0], rgb.shape[1]
 
-            if use_cpp_bin:
-                cmd = [
-                    "./src/cpp_utils/read_3d_data/build/read_3d_data",
-                    inliers_pth,
-                    corpus_pth, "0", str(idx_untrimmed-1), str(idx_untrimmed-1),
-                    str(new_h), str(new_w), str(sfm_dist), str(real_dist),
-                ]
-                proc = Popen(cmd, stdout=PIPE, stderr=PIPE, universal_newlines=True)
-                out, err = proc.communicate()
+        if use_cpp_bin:
+            cmd = [
+                "./src/cpp_utils/read_3d_data/build/read_3d_data",
+                inliers_pth,
+                corpus_pth, "0", str(idx_untrimmed-1), str(idx_untrimmed-1),
+                str(new_h), str(new_w), str(sfm_dist), str(real_dist),
+            ]
+            proc = Popen(cmd, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+            out, err = proc.communicate()
 
-                # Parse output to python object
-                tokens = out.split()
-                ptid = np.zeros(len(tokens), dtype=np.int)
-                depth = np.zeros([new_h, new_w])
-                projection = {}
-                pt3d = {}
-                for ii, item in enumerate(tokens):
-                    k, v, u, d, pt3d_x, pt3d_y, pt3d_z = item.split(',')
-                    k, v, u, d = int(k), int(v), int(u), float(d)
-                    ptid[ii] = k
-                    depth[v, u] = d
-                    projection[k] = (u, v)
-                    pt3d[k] = [pt3d_x, pt3d_y, pt3d_z]
-                pt3d = {k: np.array(v).astype(np.float32) for k, v in pt3d.items()}
-            else:
-                ptid, pt3d, pt2d = read_inliner(inliers_pth)
-
-                frame_info = read_intrinsic_extrinsic(
-                    corpus_pth, startF=idx_untrimmed-1, stopF=idx_untrimmed-1,
-                ).VideoInfo[idx_untrimmed-1]
-
-                cam_center = frame_info.camCenter
-                principle_ray_dir = frame_info.principleRayDir
-
-                # Find depth wrt to camera coordinates
-                depth, projection = project_depth(
-                    ptid, pt3d, pt2d, cam_center, principle_ray_dir,
-                    height=frame_info.height, width=frame_info.width,
-                    new_h=new_h, new_w=new_w)
-
-                # Normalize depth to the scale in milimeters
-                depth = depth / sfm_dist * real_dist
-
-            # Interpolation
-            rbf_opts = {'function': 'linear', 'epsilon': 2.0}
-            depth = rbf_interpolate(depth, rbf_opts=rbf_opts)
-
-            # Bilateral filtering with reference image
-            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
-            k_size = 9
-            h_size = k_size // 2
-            gray_pad = np.pad(gray, ((h_size, h_size), (h_size, h_size)))
-            depth_pad = np.pad(depth, ((h_size, h_size), (h_size, h_size)))
-            depth = MiscUtils.ref_bilateral_filter(depth_pad, gray_pad, 9, 3.0, 3.0)
-            depth = depth[h_size:-h_size, h_size:-h_size]
-
-            # Clip depth to [0.5m..5m] and inverse
-            depth = 1000.0 / np.clip(depth, 500, 5000)
-
-            # Normalize to 0..255
-            depth = (depth - 0.2) / 1.8 * 255
+            # Parse output to python object
+            tokens = out.split()
+            ptid = np.zeros(len(tokens), dtype=np.int)
+            depth = np.zeros([new_h, new_w])
+            projection = {}
+            pt3d = {}
+            for ii, item in enumerate(tokens):
+                k, v, u, d, pt3d_x, pt3d_y, pt3d_z = item.split(',')
+                k, v, u, d = int(k), int(v), int(u), float(d)
+                ptid[ii] = k
+                depth[v, u] = d
+                projection[k] = (u, v)
+                pt3d[k] = [pt3d_x, pt3d_y, pt3d_z]
+            pt3d = {k: np.array(v).astype(np.float32) for k, v in pt3d.items()}
         else:
-            depth = np.zeros(rgb.shape[:2], dtype=np.float32)
+            ptid, pt3d, pt2d = read_inliner(inliers_pth)
+
+            frame_info = read_intrinsic_extrinsic(
+                corpus_pth, startF=idx_untrimmed-1, stopF=idx_untrimmed-1,
+            ).VideoInfo[idx_untrimmed-1]
+
+            cam_center = frame_info.camCenter
+            principle_ray_dir = frame_info.principleRayDir
+
+            # Find depth wrt to camera coordinates
+            depth, projection = project_depth(
+                ptid, pt3d, pt2d, cam_center, principle_ray_dir,
+                height=frame_info.height, width=frame_info.width,
+                new_h=new_h, new_w=new_w)
+
+            # Normalize depth to the scale in milimeters
+            depth = depth / sfm_dist * real_dist
+
+        # Interpolation
+        rbf_opts = {'function': 'linear', 'epsilon': 2.0}
+        depth = rbf_interpolate(depth, rbf_opts=rbf_opts)
+
+        # Bilateral filtering with reference image
+        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
+        k_size = 9
+        h_size = k_size // 2
+        gray_pad = np.pad(gray, ((h_size, h_size), (h_size, h_size)))
+        depth_pad = np.pad(depth, ((h_size, h_size), (h_size, h_size)))
+        depth = MiscUtils.ref_bilateral_filter(depth_pad, gray_pad, 9, 3.0, 3.0)
+        depth = depth[h_size:-h_size, h_size:-h_size]
+
+        # Clip depth to [0.5m..5m] and inverse
+        depth = 1000.0 / np.clip(depth, 500, 5000)
+
+        # Normalize to 0..255
+        depth = (depth - 0.2) / 1.8 * 255
 
         # The 5th channel: semantic -------------------------------------------
         semantic_pth = os.path.join(self.semantic_path,
                                     self.semantic_tmpl.format(record.untrimmed_video_name))
+        assert os.path.isfile(semantic_pth), '{} not found'.format(semantic_pth)
         semantic = np.zeros(rgb.shape[:2], dtype=np.uint8)
         exclude_lst = [0, 1, 2]
 
-        if os.path.isfile(semantic_pth) and os.path.isfile(inliers_pth):
-            # Sort ptid by depth
-            zz = [pt3d[k][2] for k in ptid]
-            _, ptid_sort = zip(*sorted(zip(zz, ptid), reverse=True))
+        # Sort ptid by depth
+        zz = [pt3d[k][2] for k in ptid]
+        _, ptid_sort = zip(*sorted(zip(zz, ptid), reverse=True))
 
-            # Expand wrt depth
-            semantic_dict = torch.load(semantic_pth)
-            for k in ptid_sort:
-                # exclude background, hand, and floor
-                if semantic_dict[k] in exclude_lst:
-                    continue
+        # Expand wrt depth
+        semantic_dict = torch.load(semantic_pth)
+        for k in ptid_sort:
+            # Skip points that not available in semantic_dict
+            if k not in semantic_dict:
+                continue
 
-                u, v = projection[k]
-                scale = int((pt3d[k][2] / sfm_dist * real_dist) / 30)
-                semantic[max(v-scale//2, 0):min(v+scale//2, semantic.shape[0]),
-                         max(u-scale//2, 0):min(u+scale//2, semantic.shape[1])
-                         ] = semantic_dict[k]
+            # exclude background, hand, and floor
+            if semantic_dict[k] in exclude_lst:
+                continue
 
-            # Normalize to 0..255 (there are 0..23 classes in total)
-            semantic = (semantic / 23 * 255).astype(int)
+            u, v = projection[k]
+            scale = int((pt3d[k][2] / sfm_dist * real_dist) / 30)
+            semantic[max(v-scale//2, 0):min(v+scale//2, semantic.shape[0]),
+                     max(u-scale//2, 0):min(u+scale//2, semantic.shape[1])
+                     ] = semantic_dict[k]
+
+        # Normalize to 0..255 (there are 0..23 classes in total)
+        semantic = (semantic / 23 * 255).astype(int)
 
         # Combine the channels
         rgbds = np.dstack([rgb, depth, semantic]).astype(np.float32)
