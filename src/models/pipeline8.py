@@ -28,7 +28,7 @@ class Pipeline8(BaseModel):
                  actreg_model_cfg, spatial_sampler_cfg, temporal_sampler_cfg,
                  hallu_pretrained_weights, actreg_pretrained_weights,
                  feat_process_type, freeze_hallu, freeze_actreg, temperature,
-                 temperature_exp_decay_factor, using_cupy):
+                 temperature_exp_decay_factor, using_cupy, full_weights=None):
         super(Pipeline8, self).__init__(device)
 
         # Turn off cudnn benchmark because of different input size
@@ -103,7 +103,8 @@ class Pipeline8(BaseModel):
             'attention_dim': self.attention_dim,
         })
         self.hallu_model = model_factory.generate(name, device=device, **params)
-        self.hallu_model.load_model(hallu_pretrained_weights)
+        if hallu_pretrained_weights is not None:
+            self.hallu_model.load_model(hallu_pretrained_weights)
         self.hallu_model.to(self.device)
 
         if freeze_hallu:
@@ -131,12 +132,17 @@ class Pipeline8(BaseModel):
                 'num_segments': self.num_segments,
             })
         self.actreg_model = model_factory.generate(name, device=device, **params)
-        self.actreg_model.load_model(actreg_pretrained_weights)
+        if actreg_pretrained_weights is not None:
+            self.actreg_model.load_model(actreg_pretrained_weights)
         self.actreg_model.to(self.device)
 
         if freeze_actreg:
             for param in self.actreg_model.parameters():
                 param.requires_grad_(False)
+
+        # Overwrite with the full_weights if given
+        if full_weights is not None:
+            self.load_model(full_weights)
 
         self.compute_model_complexity()
 
