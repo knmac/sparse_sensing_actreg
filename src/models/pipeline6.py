@@ -10,6 +10,7 @@ import time
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
 
+import numpy as np
 import torch
 
 from .base_model import BaseModel
@@ -170,9 +171,9 @@ class Pipeline6(BaseModel):
             output = (all_pred_verb, all_pred_noun)
 
         extra_output = {
-            'skip': all_skip,
-            'time': all_time,
-            'ssim': all_ssim,
+            'skip': np.array([all_skip]),
+            'time': np.array([all_time]),
+            'ssim': np.array([all_ssim]),
         }
         return output, extra_output
 
