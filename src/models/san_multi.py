@@ -82,7 +82,7 @@ class SANMulti(BaseModel):
             logger.info('Converting the ImageNet model to a spectrogram init model')
             self.base_model['Spec'] = self._construct_spec_model(self.base_model['Spec'])
             logger.info('Done. Spec model ready.')
-        if is_spec:
+        if is_rgbds:
             logger.info('Converting the ImageNet model to a 5 channel init model')
             self.base_model['Spec'] = self._construct_rgbds_model(self.base_model['Spec'])
             logger.info('Done. RGBDS model ready.')
