@@ -3,6 +3,7 @@
 import os
 import json
 
+import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -15,6 +16,7 @@ logger = logging.get_logger(__name__)
 def test(model, device, test_loader, args, has_groundtruth):
     # Switch model to eval mode
     model.eval()
+    model.to(device)
 
     # Test
     with torch.no_grad():
@@ -35,7 +37,8 @@ def test(model, device, test_loader, args, has_groundtruth):
 def test_with_gt(model, device, test_loader):
     """Test on the validation set with groundtruth labels
     """
-    assert type(model).__name__ == 'Pipeline6'
+    model_name = type(model).__name__
+    assert model_name in ['Pipeline6', 'Pipeline8']
     assert test_loader.dataset.name == 'epic_kitchens', \
         'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
 
@@ -54,11 +57,17 @@ def test_with_gt(model, device, test_loader):
         # Forward
         sample = {k: v.to(device) for k, v in sample.items()}
         target = {k: v.to(device) for k, v in target.items()}
-        output, extra_output = model(sample)
+        if model_name == 'Pipeline6':
+            output, extra_output = model(sample)
+        elif model_name == 'Pipeline8':
+            output, _, extra_output = model(sample, get_extra=True)
 
-        all_skip += extra_output['skip']
-        all_time += extra_output['time']
-        all_ssim += extra_output['ssim']
+        all_skip.append(extra_output['skip'])
+        all_time.append(extra_output['time'])
+        if isinstance(extra_output['ssim'], np.ndarray):
+            all_ssim.append(extra_output['ssim'])
+        else:
+            all_ssim.append(extra_output['ssim'].cpu().numpy())
         all_output.append(output)
 
         # Compute metrics
@@ -82,18 +91,21 @@ def test_with_gt(model, device, test_loader):
 
         # Print intermediate results
         if (i % 100 == 0) and (i != 0):
-            msg = '[{}/{}]'.format(i, len(test_loader))
+            msg = '[{}/{}]\n'.format(i, len(test_loader))
             msg += '  Prec@1 {:.3f}, Prec@5 {:.3f}\n'.format(top1.avg, top5.avg)
             msg += '  Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(verb_top1.avg, verb_top5.avg)
             msg += '  Noun Prec@1 {:.3f}, Noun Prec@5 {:.3f}'.format(noun_top1.avg, noun_top5.avg)
             logger.info(msg)
 
     # Print out message
+    all_skip = np.concatenate(all_skip, axis=0)
+    all_ssim = np.concatenate(all_ssim, axis=0)
+    all_time = np.concatenate(all_time, axis=0)
     msg = 'Overall results:\n'
     msg += '  Prec@1 {:.3f}, Prec@5 {:.3f}\n'.format(top1.avg, top5.avg)
     msg += '  Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(verb_top1.avg, verb_top5.avg)
-    msg += '  Noun Prec@1 {:.3f}, Noun Prec@5 {:.3f}'.format(noun_top1.avg, noun_top5.avg)
-    msg += '  Total frames {}, Skipped frames {}'.format(len(all_skip), sum(all_skip))
+    msg += '  Noun Prec@1 {:.3f}, Noun Prec@5 {:.3f}\n'.format(noun_top1.avg, noun_top5.avg)
+    msg += '  Total frames {}, Skipped frames {}'.format(all_skip.size, all_skip.sum())
     logger.info(msg)
 
     # Collect metrics
@@ -117,7 +129,8 @@ def test_with_gt(model, device, test_loader):
 def test_without_gt(model, device, test_loader):
     """Test on the test set without groundtruth labels
     """
-    assert type(model).__name__ == 'Pipeline6'
+    model_name = type(model).__name__
+    assert model_name in ['Pipeline6', 'Pipeline8']
     assert test_loader.dataset.name == 'epic_kitchens', \
         'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
 
@@ -134,7 +147,10 @@ def test_without_gt(model, device, test_loader):
     for i, (sample, _) in tqdm(enumerate(test_loader), total=len(test_loader)):
         # Inference
         sample = {k: v.to(device) for k, v in sample.items()}
-        output, extra_output = model(sample)
+        if model_name == 'Pipeline6':
+            output, extra_output = model(sample)
+        elif model_name == 'Pipeline8':
+            output, _, extra_output = model(sample, get_extra=True)
         assert output[0].shape[0] == 1, 'Only support batch_size=1'
 
         verb_output = output[0][0].cpu().numpy()
@@ -148,14 +164,20 @@ def test_without_gt(model, device, test_loader):
         }
 
         # Collect extra results
-        all_skip += extra_output['skip']
-        all_time += extra_output['time']
-        all_ssim += extra_output['ssim']
+        all_skip.append(extra_output['skip'])
+        all_time.append(extra_output['time'])
+        if isinstance(extra_output['ssim'], np.ndarray):
+            all_ssim.append(extra_output['ssim'])
+        else:
+            all_ssim.append(extra_output['ssim'].cpu().numpy())
 
     # Print out message
     msg = '  Total frames {}, Skipped frames {}'.format(len(all_skip), sum(all_skip))
     logger.info(msg)
 
+    all_skip = np.concatenate(all_skip, axis=0)
+    all_ssim = np.concatenate(all_ssim, axis=0)
+    all_time = np.concatenate(all_time, axis=0)
     extra_results = {
         'all_skip': all_skip,
         'all_ssim': all_ssim,
