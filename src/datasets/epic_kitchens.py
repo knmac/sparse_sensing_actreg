@@ -251,10 +251,10 @@ class EpicKitchenDataset(BaseDataset):
         The depth_path should have this format
             [depth]/
             └── [video_name]/
+                ├── CamPose_0000.txt
+                ├── Intrinsic_0000.txt
+                ├── Points.txt
                 └── 0/
-                    ├── CamPose_0000.txt
-                    ├── Intrinsic_0000.txt
-                    ├── Points.txt
                     └── PnPf/
                         ├── Inliers_[fid].txt
                         └── ...
@@ -305,9 +305,9 @@ class EpicKitchenDataset(BaseDataset):
         #     self.depth_path, record.untrimmed_video_name,
         #     self.depth_tmpl.format(idx_untrimmed-1))
         corpus_pth = os.path.join(
-            self.depth_path, record.untrimmed_video_name, '0')
+            self.depth_path, record.untrimmed_video_name)
         normalize_point_pth = os.path.join(
-            self.depth_path, record.untrimmed_video_name, '0', 'Points.txt')
+            self.depth_path, record.untrimmed_video_name, 'Points.txt')
 
         # Get sfm_dist and real_dist
         assert os.path.isfile(normalize_point_pth)
