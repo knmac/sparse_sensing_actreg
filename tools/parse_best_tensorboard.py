@@ -41,8 +41,8 @@ def main(args):
     # Find argmax wrt data_prec_top1
     log_type = 'data_prec_top1_validation'
     top1 = get_scalars(args.log_dir, log_type)[0]
-    print('n_epochs =', len(top1))
     argmax = np.argmax([item.value for item in top1])
+    print('n_epochs =', len(top1), ', argmax =', argmax)
 
     # Print all data at argmax
     log_types = [
@@ -55,6 +55,11 @@ def main(args):
         'data_noun_loss_validation',
         'data_noun_prec_top1_validation',
         'data_noun_prec_top5_validation',
+        'data_gflops_total_validation',
+        'data_gflops_avg_validation',
+        'data_n_frames_skipped_validation',
+        'data_n_frames_prescanned_validation',
+        'data_n_frames_nonskipped_validation',
     ]
     for log_type in log_types:
         data = get_scalars(args.log_dir, log_type)

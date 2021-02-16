@@ -1,6 +1,7 @@
 import os
 import time
 
+import numpy as np
 import torch
 from torch import optim
 from torch.optim.lr_scheduler import MultiStepLR
@@ -371,6 +372,7 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             belief_losses = AverageMeter()
         if has_eff:
             eff_losses = AverageMeter()
+            all_gflops = []
 
         # Validation loop
         end = time.time()
@@ -389,7 +391,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                     else:
                         loss_belief = loss_belief.mean()
                 if has_eff:
-                    output, loss_eff = model(sample)
+                    output, loss_eff, extra_outputs = model(sample, get_extra=True)
+                    all_gflops.append(extra_outputs['gflops'])
                     loss_eff = loss_eff.mean()
             else:
                 output = model(sample)
@@ -450,6 +453,9 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             batch_time.update(time.time() - end)
             end = time.time()
 
+        if has_eff:
+            all_gflops = np.concatenate(all_gflops, axis=0)
+
         # Print out message
         msg_prefix = 'Testing results:\n'
         log_content = {'losses': losses, 'top1': top1, 'top5': top5}
@@ -462,7 +468,14 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         if has_belief:
             log_content.update({'belief_losses': belief_losses})
         if has_eff:
-            log_content.update({'eff_losses': eff_losses})
+            log_content.update({
+                'eff_losses': eff_losses,
+                'total_gflops': all_gflops.sum(),
+                'avg_gflops': all_gflops.mean(),
+                'n_skipped': np.sum(all_gflops == 0),
+                'n_prescanned': np.sum(all_gflops == model.module.gflops_prescan),
+                'n_nonskipped': np.sum(all_gflops == model.module.gflops_full),
+            })
         _log_message('validation', sum_writer, run_iter, log_content, msg_prefix)
 
         # Collect validation metrics
@@ -478,7 +491,14 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         if has_belief:
             val_metrics.update({'val_belief_loss': belief_losses.avg})
         if has_eff:
-            val_metrics.update({'val_eff_loss': eff_losses.avg})
+            val_metrics.update({
+                'val_eff_loss': eff_losses.avg,
+                'total_gflops': all_gflops.sum(),
+                'avg_gflops': all_gflops.mean(),
+                'n_skipped': np.sum(all_gflops == 0),
+                'n_prescanned': np.sum(all_gflops == model.module.gflops_prescan),
+                'n_nonskipped': np.sum(all_gflops == model.module.gflops_full),
+            })
         return val_metrics
 
 
@@ -506,6 +526,12 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
                 sum_writer.add_scalars('data/belief/loss', {phase: data['belief_losses'].avg}, run_iter)
             if 'eff_losses' in data.keys():
                 sum_writer.add_scalars('data/eff/loss', {phase: data['eff_losses'].avg}, run_iter)
+            if 'total_gflops' in data.keys():
+                sum_writer.add_scalars('data/gflops/total', {phase: data['total_gflops']}, run_iter)
+                sum_writer.add_scalars('data/gflops/avg', {phase: data['avg_gflops']}, run_iter)
+                sum_writer.add_scalars('data/n_frames/skipped', {phase: data['n_skipped']}, run_iter)
+                sum_writer.add_scalars('data/n_frames/prescanned', {phase: data['n_prescanned']}, run_iter)
+                sum_writer.add_scalars('data/n_frames/nonskipped', {phase: data['n_nonskipped']}, run_iter)
 
         msg += '  Verb Loss {:.4f}, Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(
             data['verb_losses'].avg, data['verb_top1'].avg, data['verb_top5'].avg)
@@ -518,5 +544,10 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
         msg += '\n  Belief Loss {:.4f}'.format(data['belief_losses'].avg)
     if 'eff_losses' in data.keys():
         msg += '\n  Eff Loss {:.4f}'.format(data['eff_losses'].avg)
+    if 'total_gflops' in data.keys():
+        msg += '\n  GFLOPS: accumulated {:.4f}  avg_perframe {:.4f}'.format(
+            data['total_gflops'], data['avg_gflops'])
+        msg += '\n  N frames: skipped {}  prescanned {}  nonskipped {}'.format(
+            data['n_skipped'], data['n_prescanned'], data['n_nonskipped'])
 
     logger.info(msg)

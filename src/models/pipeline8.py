@@ -216,6 +216,15 @@ class Pipeline8(BaseModel):
             'time_sampler': time_sampler_flops,
         }
 
+        # GFLOPS of the full pipeline
+        self.gflops_full = sum([v for k, v in self.gflops_dict.items()])
+        logger.info('Full pipeline: GFLOPS=%.4f' % self.gflops_full)
+
+        # GFLOPS for only prescanning
+        self.gflops_prescan = sum([self.gflops_dict[k] for k in
+                                   ['rgb_low_first', 'hallu', 'time_sampler']])
+        logger.info('Prescanning:   GFLOPS=%.4f' % self.gflops_prescan)
+
     def decay_temperature(self):
         """Decay the temperature for gumbel softmax loss"""
         self.temperature *= np.exp(self.temperature_exp_decay_factor)
@@ -352,21 +361,40 @@ class Pipeline8(BaseModel):
         # =====================================================================
         # Manipulate batch and output fields
         # =====================================================================
+        # Get outputs
         out_verb = torch.cat([x[0] for x in outputs], dim=0)
         out_noun = torch.cat([x[1] for x in outputs], dim=0)
         outputs = (out_verb, out_noun)
 
+        # Combine extra_outputs
         tmp = {}
         tmp['skip'] = np.array([item['skip'] for item in extra_outputs])
         tmp['time'] = np.array([item['time'] for item in extra_outputs])
         tmp['ssim'] = torch.cat([item['ssim'] for item in extra_outputs], dim=0)
         tmp['r'] = torch.cat([item['r'] for item in extra_outputs], dim=0)
         extra_outputs = tmp
-        loss_eff = self.compute_efficiency_loss(extra_outputs['r'])
+
+        # Compute efficiency loss
+        loss_eff, gflops_lst = self.compute_efficiency_loss(extra_outputs['r'])
+        extra_outputs['gflops'] = gflops_lst
+        # self._check_skip(gflops_lst, extra_outputs['skip'])
 
         if get_extra:
             return outputs, loss_eff, extra_outputs
         return outputs, loss_eff
+
+    def _check_skip(self, gflops_lst, skip):
+        full = np.zeros(gflops_lst.shape)
+        full[np.where(gflops_lst == self.gflops_full)] = 1
+
+        prescan = np.zeros(gflops_lst.shape)
+        prescan[np.where(gflops_lst == self.gflops_prescan)] = 1
+
+        real_skip = np.zeros(gflops_lst.shape)
+        real_skip[np.where(gflops_lst == 0)] = 1
+
+        assert np.all(full + prescan + real_skip == 1)
+        assert np.all(prescan + real_skip == skip)
 
     def compute_efficiency_loss(self, r):
         """Compute the efficient loss based on sampling and models FLOPS
@@ -380,28 +408,31 @@ class Pipeline8(BaseModel):
         batch_size = r.shape[0]
         loss_eff = torch.zeros([batch_size]).to(self.device)
 
-        gflops_full = sum([v for k, v in self.gflops_dict.items()])
-        gflops_prescan = sum([self.gflops_dict[k] for k in ['rgb_low_first', 'hallu', 'time_sampler']])
-
+        gflops_lst = np.zeros([batch_size, self.num_segments])
         for i in range(batch_size):
+            gflops_lst[i, 0] = self.gflops_full
+
             # Ignore the 1st frame because of constant flops (warmup)
             t = 1
             while t < self.num_segments:
                 skip = r[i, t].argmax().item()
                 if skip == 0:
                     # Full pipeline
-                    loss_eff[i] += r[i, t].sum() * gflops_full
+                    loss_eff[i] += r[i, t].sum() * self.gflops_full
+                    gflops_lst[i, t] = self.gflops_full
                     t += 1
                 elif skip == 1:
                     # Run prescan and skip the rest of the pipeline + go to next frame
-                    loss_eff[i] += r[i, t].sum() * gflops_prescan
+                    loss_eff[i] += r[i, t].sum() * self.gflops_prescan
+                    gflops_lst[i, t] = self.gflops_prescan
                     t += 1
                 else:
                     # Run prescan and skip the rest of the pipeline + skip frames
-                    loss_eff[i] += r[i, t].sum() * gflops_prescan
+                    loss_eff[i] += r[i, t].sum() * self.gflops_prescan
+                    gflops_lst[i, t] = self.gflops_prescan
                     t += skip
 
-        return loss_eff
+        return loss_eff, gflops_lst
 
     def warmup(self, low_feat, attn, spec_feat, rgb_high):
         """Warm up to generate memory and avoid skipping the 1st frame. Similar
