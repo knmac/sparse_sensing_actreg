@@ -28,7 +28,8 @@ class Pipeline8(BaseModel):
                  actreg_model_cfg, spatial_sampler_cfg, temporal_sampler_cfg,
                  hallu_pretrained_weights, actreg_pretrained_weights,
                  feat_process_type, freeze_hallu, freeze_actreg, temperature,
-                 temperature_exp_decay_factor, using_cupy, full_weights=None):
+                 temperature_exp_decay_factor, eff_loss_weights, using_cupy,
+                 full_weights=None):
         super(Pipeline8, self).__init__(device)
 
         # Turn off cudnn benchmark because of different input size
@@ -48,6 +49,7 @@ class Pipeline8(BaseModel):
         self.dropout = dropout
         self.feat_process_type = feat_process_type  # [add, cat]
         self.using_cupy = using_cupy
+        self.eff_loss_weights = eff_loss_weights
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
@@ -432,6 +434,7 @@ class Pipeline8(BaseModel):
                     gflops_lst[i, t] = self.gflops_prescan
                     t += skip
 
+        loss_eff *= self.eff_loss_weights
         return loss_eff, gflops_lst
 
     def warmup(self, low_feat, attn, spec_feat, rgb_high):
