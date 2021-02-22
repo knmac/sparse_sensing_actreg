@@ -19,10 +19,11 @@ def parse_args():
     return args
 
 
-def get_scalars(log_dir, log_type):
+def get_scalars(log_dir, log_type, verbose=False):
     event_fname = glob.glob(os.path.join(log_dir, log_type, 'event*'))
     if len(event_fname) != 1:
-        print('  {} --> len(event_fname)=={}'.format(log_type, len(event_fname)))
+        if verbose:
+            print('  {} --> len(event_fname)=={}'.format(log_type, len(event_fname)))
         return None
 
     ttf_guidance = {
