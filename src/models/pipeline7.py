@@ -133,9 +133,10 @@ class Pipeline7(BaseModel):
             lst.append(param.requires_grad)
         print('Required grads: {}/{}'.format(sum(lst), len(lst)))
 
-    def forward(self, x, avg=True, get_extra=False):
+    def forward(self, x, output_mode='avg_non_skip', get_extra=False):
         """Forwad a sequence of frame
         """
+        assert output_mode in ['avg_all', 'avg_non_skip', 'raw']
         rgb_high = x['RGB']
         rgb_low = rgb_high[:, :, ::2, ::2]
         spec = x['Spec']
@@ -203,10 +204,20 @@ class Pipeline7(BaseModel):
             # Prepare outputs
             all_pred_verb = torch.cat(all_pred_verb, dim=1)
             all_pred_noun = torch.cat(all_pred_noun, dim=1)
-            if avg:
+            if output_mode == 'avg_all':
                 output = (all_pred_verb.mean(dim=1), all_pred_noun.mean(dim=1))
-            else:
+            elif output_mode == 'avg_non_skip':
+                foo, bar, cnt = 0, 0, 0
+                for t in range(self.num_segments):
+                    if not all_skip[t]:
+                        foo += all_pred_verb[:, t, :]
+                        bar += all_pred_noun[:, t, :]
+                        cnt += 1
+                output = (foo/cnt, bar/cnt)
+            elif output_mode == 'raw':
                 output = (all_pred_verb, all_pred_noun)
+            else:
+                raise NotImplementedError
 
             extra_output = {
                 'skip': all_skip,
