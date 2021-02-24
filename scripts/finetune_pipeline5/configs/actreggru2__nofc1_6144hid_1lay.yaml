@@ -1,0 +1,6 @@
+model_name: 'ActregGRU2'
+model_params:
+    rnn_input_size: ~
+    rnn_hidden_size: 6144
+    rnn_num_layers: 1
+    consensus_type: 'avg'
