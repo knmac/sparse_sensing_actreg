@@ -20,20 +20,28 @@ def parse_args():
 
 
 def get_scalars(log_dir, log_type, verbose=False):
-    event_fname = glob.glob(os.path.join(log_dir, log_type, 'event*'))
-    if len(event_fname) != 1:
+    event_fnames = glob.glob(os.path.join(log_dir, log_type, 'event*'))
+    event_fnames.sort()
+    if len(event_fnames) == 0:
         if verbose:
-            print('  {} --> len(event_fname)=={}'.format(log_type, len(event_fname)))
+            print('  {} --> len(event_fname)=={}'.format(log_type, len(event_fnames)))
         return None
 
-    ttf_guidance = {
-        event_accumulator.SCALARS: 0,
-    }
-    event_fname = event_fname[0]
-    ea = event_accumulator.EventAccumulator(event_fname, ttf_guidance)
-    ea.Reload()
+    scalars = None
+    for i in range(len(event_fnames)):
+        ttf_guidance = {
+            event_accumulator.SCALARS: 0,
+        }
+        event_fname = event_fnames[i]
+        ea = event_accumulator.EventAccumulator(event_fname, ttf_guidance)
+        ea.Reload()
 
-    scalars = [ea.Scalars(tag) for tag in ea.Tags()['scalars']]
+        if scalars is None:
+            scalars = [ea.Scalars(tag) for tag in ea.Tags()['scalars']]
+        else:
+            for j, tag in enumerate(ea.Tags()['scalars']):
+                scalars[j] += ea.Scalars(tag)
+
     return scalars
 
 
