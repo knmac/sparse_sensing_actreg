@@ -22,7 +22,8 @@ class Pipeline5(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
                  new_length, attention_layer, attention_dim, dropout,
                  high_feat_model_cfg, low_feat_model_cfg, spatial_sampler_cfg,
-                 actreg_model_cfg, feat_process_type, using_cupy, reduce_dim=None):
+                 actreg_model_cfg, feat_process_type, using_cupy, reduce_dim=None,
+                 ignore_lowres=False):
         super(Pipeline5, self).__init__(device)
 
         # Turn off cudnn benchmark because of different input size
@@ -39,6 +40,9 @@ class Pipeline5(BaseModel):
         self.dropout = dropout
         self.feat_process_type = feat_process_type  # [reduce, add, cat]
         self.using_cupy = using_cupy
+        self.ignore_lowres = ignore_lowres  # ignore low res feature and use only sampled high res
+        if ignore_lowres:
+            assert feat_process_type == 'cat'  # only works with cat
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
@@ -94,8 +98,12 @@ class Pipeline5(BaseModel):
                 'Feature dimensions must be the same to add'
             real_dim = self.low_feat_model.feature_dim
         elif self.feat_process_type == 'cat':
-            real_dim = self.low_feat_model.feature_dim * len(modality) + \
-                self.high_feat_model.feature_dim * self.spatial_sampler.top_k
+            if self.ignore_lowres:
+                real_dim = self.low_feat_model.feature_dim * (len(modality)-1) + \
+                    self.high_feat_model.feature_dim * self.spatial_sampler.top_k
+            else:
+                real_dim = self.low_feat_model.feature_dim * len(modality) + \
+                    self.high_feat_model.feature_dim * self.spatial_sampler.top_k
         else:
             raise NotImplementedError
 
@@ -220,7 +228,10 @@ class Pipeline5(BaseModel):
             for k in range(self.spatial_sampler.top_k):
                 all_feats += high_feat[k]
         elif self.feat_process_type == 'cat':
-            all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
+            if self.ignore_lowres:
+                all_feats = torch.cat([spec_feat] + high_feat, dim=2)
+            else:
+                all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
 
         assert all_feats.ndim == 3
 
