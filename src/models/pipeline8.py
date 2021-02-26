@@ -198,7 +198,7 @@ class Pipeline8(BaseModel):
 
         # Actreg --------------------------------------------------------------
         actreg_flops, actreg_params = get_model_complexity_info(
-            self.actreg_model, (1, self.actreg_model.fc1.in_features), **opts)
+            self.actreg_model, (1, self.actreg_model._input_dim), **opts)
         actreg_flops *= 1e-9
         logger.info('Actreg:        GFLOPS=%.4f' % actreg_flops)
 

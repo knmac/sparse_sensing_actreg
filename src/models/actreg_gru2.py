@@ -33,14 +33,14 @@ class ActregGRU2(BaseModel):
 
         # Fusion layer for multiple modalities
         # self.fc1 = nn.Linear(len(modality)*feature_dim, rnn_input_size)
-        _input_dim = feature_dim*len(modality) + extra_dim
+        self._input_dim = feature_dim*len(modality) + extra_dim
         if rnn_input_size is not None:
-            self.fc1 = nn.Linear(_input_dim, rnn_input_size)
+            self.fc1 = nn.Linear(self._input_dim, rnn_input_size)
             normal_(self.fc1.weight, 0, _std)
             constant_(self.fc1.bias, 0)
         else:
             # No fusion layer. Reuse _input_dim as rnn_input_size
-            rnn_input_size = _input_dim
+            rnn_input_size = self._input_dim
             self.fc1 = None
 
         # RNN
