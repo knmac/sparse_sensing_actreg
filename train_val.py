@@ -1,7 +1,6 @@
 import os
 import time
 
-import numpy as np
 import torch
 from torch import optim
 from torch.optim.lr_scheduler import MultiStepLR
@@ -221,7 +220,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                 else:
                     loss_belief = loss_belief.mean()
             if has_eff:
-                output, loss_eff = model(sample)
+                output, loss_eff, _ = model(sample)
                 loss_eff = loss_eff.mean()
         else:
             output = model(sample)
@@ -391,8 +390,8 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                     else:
                         loss_belief = loss_belief.mean()
                 if has_eff:
-                    output, loss_eff, extra_outputs = model(sample, get_extra=True)
-                    all_gflops.append(extra_outputs['gflops'])
+                    output, loss_eff, gflops = model(sample)
+                    all_gflops.append(gflops)
                     loss_eff = loss_eff.mean()
             else:
                 output = model(sample)
@@ -454,7 +453,7 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             end = time.time()
 
         if has_eff:
-            all_gflops = np.concatenate(all_gflops, axis=0)
+            all_gflops = torch.cat(all_gflops, dim=0)
 
         # Print out message
         msg_prefix = 'Testing results:\n'
@@ -470,11 +469,11 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         if has_eff:
             log_content.update({
                 'eff_losses': eff_losses,
-                'total_gflops': all_gflops.sum(),
-                'avg_gflops': all_gflops.mean(),
-                'n_skipped': np.sum(all_gflops == 0),
-                'n_prescanned': np.sum(all_gflops == model.module.gflops_prescan),
-                'n_nonskipped': np.sum(all_gflops == model.module.gflops_full),
+                'total_gflops': all_gflops.sum().item(),
+                'avg_gflops': all_gflops.mean().item(),
+                'n_skipped': (all_gflops == 0).sum().item(),
+                'n_prescanned': (all_gflops == model.module.gflops_prescan).sum().item(),
+                'n_nonskipped': (all_gflops == model.module.gflops_full).sum().item(),
             })
         _log_message('validation', sum_writer, run_iter, log_content, msg_prefix)
 
@@ -493,11 +492,11 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         if has_eff:
             val_metrics.update({
                 'val_eff_loss': eff_losses.avg,
-                'total_gflops': all_gflops.sum(),
-                'avg_gflops': all_gflops.mean(),
-                'n_skipped': np.sum(all_gflops == 0),
-                'n_prescanned': np.sum(all_gflops == model.module.gflops_prescan),
-                'n_nonskipped': np.sum(all_gflops == model.module.gflops_full),
+                'total_gflops': all_gflops.sum().item(),
+                'avg_gflops': all_gflops.mean().item(),
+                'n_skipped': (all_gflops == 0).sum().item(),
+                'n_prescanned': (all_gflops == model.module.gflops_prescan).sum().item(),
+                'n_nonskipped': (all_gflops == model.module.gflops_full).sum().item(),
             })
         return val_metrics
 

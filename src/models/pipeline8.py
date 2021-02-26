@@ -378,12 +378,12 @@ class Pipeline8(BaseModel):
 
         # Compute efficiency loss
         loss_eff, gflops_lst = self.compute_efficiency_loss(extra_outputs['r'])
-        extra_outputs['gflops'] = gflops_lst
         # self._check_skip(gflops_lst, extra_outputs['skip'])
+        gflops_lst = torch.tensor(gflops_lst).to(loss_eff.device)
 
         if get_extra:
-            return outputs, loss_eff, extra_outputs
-        return outputs, loss_eff
+            return outputs, loss_eff, gflops_lst, extra_outputs
+        return outputs, loss_eff, gflops_lst
 
     def _check_skip(self, gflops_lst, skip):
         full = np.zeros(gflops_lst.shape)

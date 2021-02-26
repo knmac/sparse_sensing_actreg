@@ -60,7 +60,7 @@ def test_with_gt(model, device, test_loader):
         if model_name == 'Pipeline6':
             output, extra_output = model(sample)
         elif model_name == 'Pipeline8':
-            output, _, extra_output = model(sample, get_extra=True)
+            output, _, _, extra_output = model(sample, get_extra=True)
 
         all_skip.append(extra_output['skip'])
         all_time.append(extra_output['time'])
@@ -150,7 +150,7 @@ def test_without_gt(model, device, test_loader):
         if model_name == 'Pipeline6':
             output, extra_output = model(sample)
         elif model_name == 'Pipeline8':
-            output, _, extra_output = model(sample, get_extra=True)
+            output, _, _, extra_output = model(sample, get_extra=True)
         assert output[0].shape[0] == 1, 'Only support batch_size=1'
 
         verb_output = output[0][0].cpu().numpy()
