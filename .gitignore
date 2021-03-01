@@ -13,6 +13,7 @@ pretrained/san_imagenet/
 pretrained/san19_epic_otherscales/64/
 pretrained/san19_epic_otherscales/168/
 pretrained/san19_epic_otherscales/112/best.model
+pretrained/finetuned/san19_epic_64/64_0003.model
 pretrained/finetuned/san19_epic_112/112_0003.model
 pretrained/finetuned/san19_epic_224/224_0003.model
 cache/
