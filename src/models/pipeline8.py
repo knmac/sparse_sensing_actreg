@@ -35,9 +35,9 @@ class Pipeline8(BaseModel):
         # Turn off cudnn benchmark because of different input size
         # torch.backends.cudnn.benchmark = False
 
-        # Only support layer3_0 for now
+        # Only support layer3_0 and layer2_3 for now
         # Affecting the implementation of 1st and 2nd half splitting
-        assert attention_layer == ['layer3', '0']
+        assert attention_layer in [['layer3', '0'], ['layer2', '3']]
 
         # Save the input arguments
         self.num_class = num_class
@@ -53,8 +53,8 @@ class Pipeline8(BaseModel):
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
-        assert params['new_input_size'] == 112, \
-            'Only support low resolutions of 112 for now'
+        assert params['new_input_size'] in [112, 64], \
+            'Only support low resolutions of 112 or 64 for now'
         params.update({
             'new_length': self.new_length,
             'modality': self.modality,
@@ -169,7 +169,7 @@ class Pipeline8(BaseModel):
         for k in flops_dict:
             rgb_low_first_flops += flops_dict[k]
             rgb_low_first_params += param_dict[k]
-            if k == 'layer3-0':
+            if k == '-'.join(self.attention_layer):
                 break
         rgb_low_second_flops = rgb_low_flops - rgb_low_first_flops
         # rgb_low_second_params = rgb_low_params - rgb_low_first_params
@@ -664,27 +664,37 @@ class Pipeline8(BaseModel):
         return output
 
     def first_half_forward(self, x, san):
-        """Warper of the forward function of SAN to run the first half, up to
-        layer3_0
+        """Warper of the forward function of SAN to run the first half
         """
         x = san.relu(san.bn_in(san.conv_in(x)))
-        x = san.relu(san.bn0(san.layer0(san.conv0(san.pool(x)))))
-        x = san.relu(san.bn1(san.layer1(san.conv1(san.pool(x)))))
-        x = san.relu(san.bn2(san.layer2(san.conv2(san.pool(x)))))
 
-        # Run layer3_0
-        x = san.layer3[0](san.conv3(san.pool(x)))
+        if self.attention_layer == ['layer3', '0']:
+            x = san.relu(san.bn0(san.layer0(san.conv0(san.pool(x)))))
+            x = san.relu(san.bn1(san.layer1(san.conv1(san.pool(x)))))
+            x = san.relu(san.bn2(san.layer2(san.conv2(san.pool(x)))))
+            # Run layer3_0
+            x = san.layer3[0](san.conv3(san.pool(x)))
+        elif self.attention_layer == ['layer2', '3']:
+            x = san.relu(san.bn0(san.layer0(san.conv0(san.pool(x)))))
+            x = san.relu(san.bn1(san.layer1(san.conv1(san.pool(x)))))
+            x = san.relu(san.bn2(san.layer2(san.conv2(san.pool(x)))))
+        else:
+            raise NotImplementedError
         return x
 
     def second_half_forward(self, x, san):
-        """Warper of the forward function of SAN to run the second half, from
-        after layer3_0 (starting with layer3_1)
+        """Warper of the forward function of SAN to run the second half
         """
-        # Run from layer3_1 to the end of layer3
-        # x = san.relu(san.bn3(san.layer3(san.conv3(san.pool(x)))))
-        x = san.relu(san.bn3(san.layer3[1:](x)))
+        if self.attention_layer == ['layer3', '0']:
+            # Run from layer3_1 to the end of layer3
+            x = san.relu(san.bn3(san.layer3[1:](x)))
+            x = san.relu(san.bn4(san.layer4(san.conv4(san.pool(x)))))
+        elif self.attention_dim == ['layer2', '3']:
+            x = san.relu(san.bn3(san.layer3(san.conv3(san.pool(x)))))
+            x = san.relu(san.bn4(san.layer4(san.conv4(san.pool(x)))))
+        else:
+            raise NotImplementedError
 
-        x = san.relu(san.bn4(san.layer4(san.conv4(san.pool(x)))))
         x = san.avgpool(x)
         x = x.view(x.size(0), -1)
         return x
