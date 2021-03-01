@@ -46,8 +46,8 @@ class Pipeline5(BaseModel):
 
         # Generate feature extraction models for low resolutions
         name, params = ConfigLoader.load_model_cfg(low_feat_model_cfg)
-        assert params['new_input_size'] == 112, \
-            'Only support low resolutions of 112 for now'
+        assert params['new_input_size'] in [112, 64], \
+            'Only support low resolutions of 112 or 64 for now'
         params.update({
             'new_length': self.new_length,
             'modality': self.modality,
@@ -63,6 +63,12 @@ class Pipeline5(BaseModel):
             'using_cupy': self.using_cupy,
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
+
+        # Compute downsampling factor
+        down_factor = self.high_feat_model.input_size['RGB'] / self.low_feat_model.input_size['RGB']
+        assert down_factor == int(down_factor) and down_factor >= 1, \
+            'Invalid downsampling factor: {}'.format(down_factor)
+        self.down_factor = int(down_factor)
 
         # Generate spatial sampler
         name, params = ConfigLoader.load_model_cfg(spatial_sampler_cfg)
@@ -131,7 +137,7 @@ class Pipeline5(BaseModel):
 
     def forward(self, x):
         _rgb_high = x['RGB']
-        _rgb_low = _rgb_high[:, :, ::2, ::2]  # [B, T*C, H, W]
+        _rgb_low = _rgb_high[:, :, ::self.down_factor, ::self.down_factor]
         _spec = x['Spec']
         batch_size = _rgb_high.shape[0]
 
