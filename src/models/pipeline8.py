@@ -71,6 +71,12 @@ class Pipeline8(BaseModel):
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
 
+        # Compute downsampling factor
+        down_factor = self.high_feat_model.input_size['RGB'] / self.low_feat_model.input_size['RGB']
+        assert down_factor == int(down_factor) and down_factor >= 1, \
+            'Invalid downsampling factor: {}'.format(down_factor)
+        self.down_factor = int(down_factor)
+
         # Generate temporal sampler
         self.temperature = temperature
         self.temperature_exp_decay_factor = temperature_exp_decay_factor
@@ -239,7 +245,7 @@ class Pipeline8(BaseModel):
         """
         assert output_mode in ['avg_all', 'avg_non_skip', 'raw']
         rgb_high = x['RGB']
-        rgb_low = rgb_high[:, :, ::2, ::2]
+        rgb_low = rgb_high[:, :, ::self.down_factor, ::self.down_factor]
         spec = x['Spec']
         batch_size = rgb_high.shape[0]
 
