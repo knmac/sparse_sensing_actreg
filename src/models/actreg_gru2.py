@@ -34,14 +34,34 @@ class ActregGRU2(BaseModel):
         # Fusion layer for multiple modalities
         # self.fc1 = nn.Linear(len(modality)*feature_dim, rnn_input_size)
         self._input_dim = feature_dim*len(modality) + extra_dim
-        if rnn_input_size is not None:
-            self.fc1 = nn.Linear(self._input_dim, rnn_input_size)
-            normal_(self.fc1.weight, 0, _std)
-            constant_(self.fc1.bias, 0)
-        else:
+        if rnn_input_size is None:
             # No fusion layer. Reuse _input_dim as rnn_input_size
             rnn_input_size = self._input_dim
             self.fc1 = None
+        elif isinstance(rnn_input_size, int):
+            # Single fusion layer
+            self.fc1 = nn.Linear(self._input_dim, rnn_input_size)
+            normal_(self.fc1.weight, 0, _std)
+            constant_(self.fc1.bias, 0)
+        elif isinstance(rnn_input_size, list) or isinstance(rnn_input_size, tuple):
+            # Multiple fusion layer
+            self.fc1 = []
+            prev_dim = self._input_dim
+            for dim in rnn_input_size:
+                tmp = nn.Linear(prev_dim, dim)
+                normal_(tmp.weight, 0, _std)
+                constant_(tmp.bias, 0)
+                self.fc1.append(tmp)
+                self.fc1.append(self.relu)
+                prev_dim = dim
+
+            # Remove the last relu because already in forward
+            self.fc1 = nn.Sequential(*self.fc1[:-1])
+
+            # Use the last dim as the real rnn input dim
+            rnn_input_size = rnn_input_size[-1]
+        else:
+            raise NotImplementedError
 
         # RNN
         self.rnn = nn.GRU(
