@@ -154,7 +154,7 @@ class Pipeline8(BaseModel):
         opts = {'as_strings': False, 'print_per_layer_stat': False}
 
         # RGB - low res -------------------------------------------------------
-        rgb_low_indim = self.low_feat_model.new_input_size
+        rgb_low_indim = self.low_feat_model.input_size['RGB']
         rgb_low_flops, rgb_low_params = get_model_complexity_info(
             self.low_feat_model.rgb, (3, rgb_low_indim, rgb_low_indim), **opts)
         flops_dict, param_dict = MiscUtils.collect_flops(self.low_feat_model.rgb)
@@ -171,9 +171,9 @@ class Pipeline8(BaseModel):
         rgb_low_flops *= 1e-9
         rgb_low_first_flops *= 1e-9
         rgb_low_second_flops *= 1e-9
-        logger.info('RGB low (%d):     GFLOPS=%.04f' % (rgb_low_indim, rgb_low_flops))
-        logger.info('- 1st half:        GFLOPS=%.04f' % rgb_low_first_flops)
-        logger.info('- 2nd half:        GFLOPS=%.04f' % rgb_low_second_flops)
+        logger.info('RGB low (%03d):      GFLOPS=%.04f' % (rgb_low_indim, rgb_low_flops))
+        logger.info('- 1st half:         GFLOPS=%.04f' % rgb_low_first_flops)
+        logger.info('- 2nd half:         GFLOPS=%.04f' % rgb_low_second_flops)
 
         # RGB - cropped high res ----------------------------------------------
         assert self.spatial_sampler.min_b_size == self.spatial_sampler.max_b_size
@@ -181,33 +181,34 @@ class Pipeline8(BaseModel):
         rgb_high_flops, rgb_high_params = get_model_complexity_info(
             self.high_feat_model.rgb, (3, sampling_size, sampling_size), **opts)
         rgb_high_flops = rgb_high_flops * self.spatial_sampler.top_k * 1e-9
-        logger.info('RGB high (%d, %dx): GFLOPS=%.04f' %
+        logger.info('RGB high (%03d, %dx): GFLOPS=%.04f' %
                     (sampling_size, self.spatial_sampler.top_k, rgb_high_flops))
 
         # Spec ----------------------------------------------------------------
+        spec_indim = self.low_feat_model.input_size['Spec']
         spec_flops, spec_params = get_model_complexity_info(
-            self.low_feat_model.spec, (1, 256, 256), **opts)
+            self.low_feat_model.spec, (1, spec_indim, spec_indim), **opts)
         spec_flops *= 1e-9
-        logger.info('Spec:              GFLOPS=%.04f' % spec_flops)
+        logger.info('Spec (%03d):         GFLOPS=%.04f' % (spec_indim, spec_flops))
 
         # Hallucination -------------------------------------------------------
         input_dim = tuple([1] + self.attention_dim)
         hallu_flops, hallu_params = get_model_complexity_info(
             self.hallu_model, input_dim, **opts)
         hallu_flops *= 1e-9
-        logger.info('Hallucination:     GFLOPS=%.4f' % hallu_flops)
+        logger.info('Hallucination:      GFLOPS=%.4f' % hallu_flops)
 
         # Actreg --------------------------------------------------------------
         actreg_flops, actreg_params = get_model_complexity_info(
             self.actreg_model, (1, self.actreg_model._input_dim), **opts)
         actreg_flops *= 1e-9
-        logger.info('Actreg:            GFLOPS=%.4f' % actreg_flops)
+        logger.info('Actreg:             GFLOPS=%.4f' % actreg_flops)
 
         # Time sampler --------------------------------------------------------
         time_sampler_flops, time_sampler_params = get_model_complexity_info(
             self.temporal_sampler, (2, 32, 7, 7), **opts)
         time_sampler_flops *= 1e-9
-        logger.info('Time sampler:      GFLOPS=%.4f' % time_sampler_flops)
+        logger.info('Time sampler:       GFLOPS=%.4f' % time_sampler_flops)
 
         self.gflops_dict = {
             'rgb_low_first': rgb_low_first_flops,
@@ -220,14 +221,14 @@ class Pipeline8(BaseModel):
         }
 
         # GFLOPS of the full pipeline
-        logger.info('='*32)
+        logger.info('='*33)
         self.gflops_full = sum([v for k, v in self.gflops_dict.items()])
-        logger.info('Full pipeline:     GFLOPS=%.4f' % self.gflops_full)
+        logger.info('Full pipeline:      GFLOPS=%.4f' % self.gflops_full)
 
         # GFLOPS for only prescanning
         self.gflops_prescan = sum([self.gflops_dict[k] for k in
                                    ['rgb_low_first', 'hallu', 'time_sampler']])
-        logger.info('Prescanning:       GFLOPS=%.4f' % self.gflops_prescan)
+        logger.info('Prescanning:        GFLOPS=%.4f' % self.gflops_prescan)
 
     def decay_temperature(self):
         """Decay the temperature for gumbel softmax loss"""
