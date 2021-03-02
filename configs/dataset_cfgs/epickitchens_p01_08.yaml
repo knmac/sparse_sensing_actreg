@@ -1,9 +1,9 @@
 dataset_name: 'epic_kitchens'
 dataset_params:
     list_file:
-        train: 'dataset_splits/EPIC_KITCHENS_2018/EPIC_train_action_labels.pkl'
-        val:   'dataset_splits/EPIC_KITCHENS_2018/EPIC_val_action_labels.pkl'
-        test:  'dataset_splits/EPIC_KITCHENS_2018/EPIC_val_action_labels.pkl'
+        train: 'dataset_splits/EPIC_KITCHENS_2018/P01_08.pkl'
+        val:   'dataset_splits/EPIC_KITCHENS_2018/P01_08.pkl'
+        test:  'dataset_splits/EPIC_KITCHENS_2018/P01_08.pkl'
     visual_path: 'data/EPIC_KITCHENS_2018/frames_restruct'
     audio_path: 'data/EPIC_KITCHENS_2018/audio_dict.pkl'
     use_audio_dict: True
