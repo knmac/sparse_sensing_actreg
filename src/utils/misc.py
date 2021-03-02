@@ -266,6 +266,29 @@ class MiscUtils:
         return train_transform, val_transform
 
     @staticmethod
+    def deprocess_rgb(rgb, num_segments, bgr2rgb=True, mean=[104, 117, 128], std=1):
+        """Deprocess RGB tensor (multiple frames) for visualization
+
+        Args:
+            rgb: tensor of shape ([T*3, H, W])
+            num_segments: T in rgb
+            bgr2rgb: whether convert from BGR to RGB
+            mean, st: the mean and std which was removed from image normalization
+
+        Return:
+            Deprocess rgb image
+        """
+        rgb = rgb.cpu().numpy()
+        _, h, w = rgb.shape
+        rgb = rgb.reshape([num_segments, 3, h, w]).transpose(0, 2, 3, 1)
+        rgb *= std  # std
+        rgb += np.array(mean)  # mean
+        if bgr2rgb:
+            rgb = rgb[..., ::-1]
+        rgb = rgb.astype(np.uint8)
+        return rgb
+
+    @staticmethod
     def compare_dicts(dict1, dict2, epsilon=1e-7, verbose=False):
         """Compare the content of two dictionaries of torch tensors
 
