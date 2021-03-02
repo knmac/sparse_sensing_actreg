@@ -20,7 +20,7 @@ class Pipeline3(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
                  new_length, attention_layer, attention_dim,
                  rnn_prefix_len, tf_decay, feat_model_cfg, hallu_model_cfg,
-                 norm_attention=False):
+                 norm_attention=False, using_cupy=True):
         super(Pipeline3, self).__init__(device)
 
         self.num_class = num_class
@@ -30,6 +30,7 @@ class Pipeline3(BaseModel):
         self.attention_layer = attention_layer
         self.attention_dim = attention_dim
         self.norm_attention = norm_attention  # whether to normalize attention
+        self.using_cupy = using_cupy
 
         self.rnn_prefix_len = rnn_prefix_len  # N frames to feed in RNN at a time
         self.tf_ratio = 1.0  # Initial teacher forcing ratio
@@ -40,6 +41,7 @@ class Pipeline3(BaseModel):
         params.update({
             'new_length': self.new_length,
             'modality': self.modality,
+            'using_cupy': self.using_cupy,
         })
         self.feat_model = model_factory.generate(name, device=device, **params)
 

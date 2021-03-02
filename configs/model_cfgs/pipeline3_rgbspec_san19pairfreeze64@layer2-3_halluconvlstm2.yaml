@@ -4,6 +4,7 @@ model_params:
     hallu_model_cfg: 'configs/model_cfgs/halluconvlstm2.yaml'
     num_class: [125, 352]
     num_segments: 10
+    using_cupy: False
     rnn_prefix_len: 5
     tf_decay: 0.95
     modality: ['RGB']
