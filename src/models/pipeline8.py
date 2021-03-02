@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath(
 
 import numpy as np
 import torch
+from torch.nn import functional as F
 
 from .base_model import BaseModel
 from src.utils.load_cfg import ConfigLoader
@@ -70,12 +71,6 @@ class Pipeline8(BaseModel):
             'using_cupy': self.using_cupy,
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
-
-        # Compute downsampling factor
-        down_factor = self.high_feat_model.input_size['RGB'] / self.low_feat_model.input_size['RGB']
-        assert down_factor == int(down_factor) and down_factor >= 1, \
-            'Invalid downsampling factor: {}'.format(down_factor)
-        self.down_factor = int(down_factor)
 
         # Generate temporal sampler
         self.temperature = temperature
@@ -240,12 +235,29 @@ class Pipeline8(BaseModel):
         """Decay the temperature for gumbel softmax loss"""
         self.temperature *= np.exp(self.temperature_exp_decay_factor)
 
+    def _downsample(self, x):
+        """Downsample/rescale high resolution image to make low resolution version
+
+        Args:
+            x: high resolution image tensor, shape of (B, T*3, H, W)
+
+        Return:
+            Low resolution version of x
+        """
+        high_dim = self.high_feat_model.input_size['RGB']
+        low_dim = self.low_feat_model.input_size['RGB']
+        down_factor = high_dim / low_dim
+
+        if isinstance(down_factor, int):
+            return x[:, :, ::down_factor, ::down_factor]
+        return F.interpolate(x, size=low_dim, mode='bilinear', align_corners=False)
+
     def forward(self, x, output_mode='avg_non_skip', get_extra=False):
         """Forwad a sequence of frame
         """
         assert output_mode in ['avg_all', 'avg_non_skip', 'raw']
         rgb_high = x['RGB']
-        rgb_low = rgb_high[:, :, ::self.down_factor, ::self.down_factor]
+        rgb_low = self._downsample(rgb_high)
         spec = x['Spec']
         batch_size = rgb_high.shape[0]
 

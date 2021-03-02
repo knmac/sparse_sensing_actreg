@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.abspath(
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from .base_model import BaseModel
 from src.utils.load_cfg import ConfigLoader
@@ -63,12 +64,6 @@ class Pipeline5(BaseModel):
             'using_cupy': self.using_cupy,
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
-
-        # Compute downsampling factor
-        down_factor = self.high_feat_model.input_size['RGB'] / self.low_feat_model.input_size['RGB']
-        assert down_factor == int(down_factor) and down_factor >= 1, \
-            'Invalid downsampling factor: {}'.format(down_factor)
-        self.down_factor = int(down_factor)
 
         # Generate spatial sampler
         name, params = ConfigLoader.load_model_cfg(spatial_sampler_cfg)
@@ -135,9 +130,26 @@ class Pipeline5(BaseModel):
             })
         self.actreg_model = model_factory.generate(name, device=device, **params)
 
+    def _downsample(self, x):
+        """Downsample/rescale high resolution image to make low resolution version
+
+        Args:
+            x: high resolution image tensor, shape of (B, T*3, H, W)
+
+        Return:
+            Low resolution version of x
+        """
+        high_dim = self.high_feat_model.input_size['RGB']
+        low_dim = self.low_feat_model.input_size['RGB']
+        down_factor = high_dim / low_dim
+
+        if isinstance(down_factor, int):
+            return x[:, :, ::down_factor, ::down_factor]
+        return F.interpolate(x, size=low_dim, mode='bilinear', align_corners=False)
+
     def forward(self, x):
         _rgb_high = x['RGB']
-        _rgb_low = _rgb_high[:, :, ::self.down_factor, ::self.down_factor]
+        _rgb_low = self._downsample(_rgb_high)
         _spec = x['Spec']
         batch_size = _rgb_high.shape[0]
 
