@@ -73,7 +73,7 @@ class SANMulti(BaseModel):
         # Prepare the flow and spec modalities by replacing the 1st layer
         is_flow = any(m == 'Flow' for m in self.modality)
         is_spec = any(m == 'Spec' for m in self.modality)
-        is_rgbds = any(m == 'RGBS' for m in self.modality)
+        is_rgbds = any(m == 'RGBDS' for m in self.modality)
         if is_flow:
             logger.info('Converting the ImageNet model to a flow init model')
             self.base_model['Flow'] = self._construct_flow_model(self.base_model['Flow'])
@@ -84,7 +84,7 @@ class SANMulti(BaseModel):
             logger.info('Done. Spec model ready.')
         if is_rgbds:
             logger.info('Converting the ImageNet model to a 5 channel init model')
-            self.base_model['Spec'] = self._construct_rgbds_model(self.base_model['Spec'])
+            self.base_model['RGBDS'] = self._construct_rgbds_model(self.base_model['RGBDS'])
             logger.info('Done. RGBDS model ready.')
 
         # Load the weights if could not load before
