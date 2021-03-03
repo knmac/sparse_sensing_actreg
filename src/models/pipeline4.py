@@ -57,7 +57,7 @@ class Pipeline4(BaseModel):
 
     def forward(self, x):
         # Extract features
-        batch_size = x['RGB'].shape[0]
+        batch_size = x[self.modality[0]].shape[0]
         if self.feat_process_type == 'cat':
             x = self.feat_model(x)
         elif self.feat_process_type == 'add':
