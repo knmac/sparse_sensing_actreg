@@ -7,6 +7,7 @@ import argparse
 
 import torch
 import torchvision
+from torch.utils.data.dataloader import default_collate
 import numpy as np
 
 sys.path.insert(0, os.path.abspath(
@@ -435,3 +436,11 @@ class MiscUtils:
 
         model.apply(del_extra_repr)
         return flops_dict, param_dict
+
+    @staticmethod
+    def safe_collate(batch):
+        """Safe collate for data loader to skip broken samples (returned as None)
+        """
+        batch = list(filter(lambda x: x is not None, batch))
+        # for python2: batch = filter(lambda x: x is not None, batch)
+        return default_collate(batch)

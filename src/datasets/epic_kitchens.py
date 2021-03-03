@@ -164,7 +164,13 @@ class EpicKitchenDataset(BaseDataset):
                     np.random.shuffle(segment_indices)
             # print(m, segment_indices)
 
-            img, label = self.get(m, record, segment_indices)
+            data = self.get(m, record, segment_indices)
+            # If there are problems with the current whole video sequence -> skip
+            if data is None:
+                return None
+            # Otherwise return the sample
+            img, label = data
+
             input[m] = img
 
         return input, label
@@ -291,7 +297,9 @@ class EpicKitchenDataset(BaseDataset):
                 break
             _offset += 1
 
-        assert found, 'missing depth keyframe for the whole segment'
+        # Missing key frames for the whole video sequence -> skip
+        if not found:
+            return None
 
         # Three first 3 channels: RGB -----------------------------------------
         rgb = Image.open(os.path.join(self.visual_path,
@@ -449,6 +457,8 @@ class EpicKitchenDataset(BaseDataset):
             p = int(seg_ind)
             for i in range(self.new_length[modality]):
                 seg_imgs = self._load_data(modality, record, p)
+                if seg_imgs is None:
+                    return None
                 images.extend(seg_imgs)
                 if p < record.num_frames[modality]:
                     p += 1

@@ -189,6 +189,7 @@ def main(args):
         'batch_size': train_params['batch_size'],
         'num_workers': train_params['num_workers'],
         'pin_memory': True,
+        'collate_fn': MiscUtils.safe_collate,  # safely remove broken samples
     }
 
     # Build model
