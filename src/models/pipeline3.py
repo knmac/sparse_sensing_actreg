@@ -45,6 +45,14 @@ class Pipeline3(BaseModel):
         })
         self.feat_model = model_factory.generate(name, device=device, **params)
 
+        # Pivot modality to extract attention
+        if 'RGB' in self.modality:
+            self._pivot_mod = self.feat_model.rgb
+        elif 'RGBDS' in self.modality:
+            self._pivot_mod = self.feat_model.rgbds
+        else:
+            raise NotImplementedError
+
         # Generate hallucination model
         name, params = ConfigLoader.load_model_cfg(hallu_model_cfg)
         assert name in ['HalluConvLSTM2'], \
@@ -62,7 +70,7 @@ class Pipeline3(BaseModel):
         self.feat_model(x)  # Only feed forward to get the attention
 
         # Retrieve attention from feature model
-        attn = self.feat_model.rgb.get_attention_weight(
+        attn = self._pivot_mod.get_attention_weight(
             l_name=self.attention_layer[0],
             m_name=self.attention_layer[1],
             aggregated=True,
