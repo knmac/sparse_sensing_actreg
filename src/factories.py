@@ -38,6 +38,7 @@ from src.models.sasan_multi import SASANMulti
 from src.models.pipeline7 import Pipeline7
 from src.models.pipeline8 import Pipeline8
 from src.models.time_sampler_rnn import TemporalSamplerRNN
+from src.models.resnet_multi import ResNetMulti
 
 import src.utils.logging as logging
 
@@ -129,6 +130,8 @@ class ModelFactory(BaseFactory):
             # ---
             'Pipeline8': Pipeline8,
             'TemporalSamplerRNN': TemporalSamplerRNN,
+            # ---
+            'ResNetMulti': ResNetMulti,
         }
 
     def generate(self, model_name, **kwargs):
