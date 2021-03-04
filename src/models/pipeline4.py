@@ -17,7 +17,7 @@ from src.utils.load_cfg import ConfigLoader
 class Pipeline4(BaseModel):
     def __init__(self, device, model_factory, num_class, modality, num_segments,
                  new_length, dropout, feat_model_cfg, actreg_model_cfg,
-                 feat_process_type='cat'):
+                 feat_process_type='cat', using_cupy=True):
         super(Pipeline4, self).__init__(device)
 
         self.num_class = num_class
@@ -26,12 +26,14 @@ class Pipeline4(BaseModel):
         self.new_length = new_length
         self.dropout = dropout
         self.feat_process_type = feat_process_type
+        self.using_cupy = using_cupy
 
         # Generate feature extraction model
         name, params = ConfigLoader.load_model_cfg(feat_model_cfg)
         params.update({
             'new_length': self.new_length,
             'modality': self.modality,
+            'using_cupy': self.using_cupy,
         })
         self.feat_model = model_factory.generate(name, device=device, **params)
 
