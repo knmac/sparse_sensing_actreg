@@ -39,6 +39,7 @@ from src.models.pipeline7 import Pipeline7
 from src.models.pipeline8 import Pipeline8
 from src.models.time_sampler_rnn import TemporalSamplerRNN
 from src.models.resnet_multi import ResNetMulti
+from src.models.actreg_gru3 import ActregGRU3
 
 import src.utils.logging as logging
 
@@ -132,6 +133,8 @@ class ModelFactory(BaseFactory):
             'TemporalSamplerRNN': TemporalSamplerRNN,
             # ---
             'ResNetMulti': ResNetMulti,
+            # ---
+            'ActregGRU3': ActregGRU3,
         }
 
     def generate(self, model_name, **kwargs):
