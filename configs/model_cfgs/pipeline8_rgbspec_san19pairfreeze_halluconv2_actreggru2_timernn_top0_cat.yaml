@@ -6,8 +6,8 @@ model_params:
     actreg_model_cfg:     'configs/model_cfgs/actreggru2.yaml'
     spatial_sampler_cfg:  'configs/model_cfgs/spatial_sampler_thres_top0.yaml'
     temporal_sampler_cfg: 'configs/model_cfgs/temporal_sampler_rnn.yaml'
-    hallu_pretrained_weights:  'pretrained/halluconvlstm2_112_layer3-0/hallu.model'
-    actreg_pretrained_weights: 'pretrained/actreggru2_pipeline4_112/actreg.model'
+    hallu_pretrained_weights:  'pretrained/finetuned/halluconvlstm2_112_layer3-0/hallu.model'
+    actreg_pretrained_weights: 'pretrained/finetuned/actreggru2_top0_cat__nofc1_1024hid_2lay/actreg.model'
     freeze_hallu: True
     freeze_actreg: False
     using_cupy: False
