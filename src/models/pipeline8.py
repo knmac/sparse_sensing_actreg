@@ -186,6 +186,7 @@ class Pipeline8(BaseModel):
                     (sampling_size, self.spatial_sampler.top_k, rgb_high_flops))
 
         # Spec ----------------------------------------------------------------
+        self.low_feat_model.input_size['Spec'] = 256
         spec_indim = self.low_feat_model.input_size['Spec']
         spec_flops, spec_params = get_model_complexity_info(
             self.low_feat_model.spec, (1, spec_indim, spec_indim), **opts)
