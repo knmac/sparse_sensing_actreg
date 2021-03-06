@@ -9,7 +9,7 @@ from struct import unpack
 import numpy as np
 import cv2
 # import skimage.io as sio
-# from skimage.transform import resize
+from skimage.transform import resize
 from scipy.interpolate import Rbf
 # import matplotlib.pyplot as plt
 
@@ -636,7 +636,7 @@ def project_depth(ptid, pt3d, pt2d, cam_center, principle_ray_dir,
     return img, projection
 
 
-def rbf_interpolate(img, rbf_opts):
+def rbf_interpolate(img, rbf_opts, down_factor=2):
     """Create RBF interpolation image from sparse 2D points
 
     Args:
@@ -645,6 +645,10 @@ def rbf_interpolate(img, rbf_opts):
     Return:
         zz: interpolation image
     """
+    # Scale down to speed up
+    orig_shape = img.shape
+    img = img[::down_factor, ::down_factor]
+
     # Get the unique points
     nz_idx = np.where(img > 0)
     y, x = nz_idx
@@ -664,4 +668,6 @@ def rbf_interpolate(img, rbf_opts):
     # axes[1, 1].scatter(x, y, 50, z)
     # axes[1, 1].set_ylim(axes[1, 1].get_ylim()[::-1])
     # plt.show()
+
+    zz = resize(zz, orig_shape, preserve_range=True)
     return zz
