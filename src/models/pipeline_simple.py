@@ -13,7 +13,7 @@ class PipelineSimple(BaseModel):
     def __init__(self, device, model_factory, num_class, num_segments, modality,
                  new_length, dropout, midfusion, consensus_type,
                  light_model_cfg, heavy_model_cfg, time_sampler_cfg,
-                 space_sampler_cfg, actreg_model_cfg):
+                 space_sampler_cfg, actreg_model_cfg, using_cupy=True):
         super(PipelineSimple, self).__init__(device)
 
         self.num_class = num_class
@@ -23,6 +23,7 @@ class PipelineSimple(BaseModel):
         self.dropout = dropout
         self.midfusion = midfusion
         self.consensus_type = consensus_type
+        self.using_cupy = using_cupy
 
         assert midfusion == 'concat', 'Only support concat for now'
 
@@ -36,6 +37,7 @@ class PipelineSimple(BaseModel):
             'modality': self.modality,
             'midfusion': self.midfusion,
             'consensus_type': self.consensus_type,
+            'using_cupy': self.using_cupy,
         })
         self.light_model = model_factory.generate(name, device=device, **params)
 
