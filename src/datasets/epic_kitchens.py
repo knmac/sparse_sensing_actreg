@@ -402,7 +402,7 @@ class EpicKitchenDataset(BaseDataset):
         semantic_dict = torch.load(semantic_pth)
         for k in ptid_sort:
             # Skip points that not available in semantic_dict
-            if k not in semantic_dict:
+            if (k not in semantic_dict) or (k not in projection):
                 continue
 
             # exclude background, hand, and floor
