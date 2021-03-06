@@ -202,6 +202,10 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     # Training loop
     end = time.time()
     for i, (sample, target) in enumerate(train_loader):
+        # Skip broken batches
+        if (not isinstance(target, dict)) and (len(target) == 1) and (target == -1):
+            continue
+
         # Measure data loading time
         data_time.update(time.time() - end)
 
@@ -376,6 +380,10 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         # Validation loop
         end = time.time()
         for i, (sample, target) in enumerate(val_loader):
+            # Skip broken batches
+            if (not isinstance(target, dict)) and (len(target) == 1) and (target == -1):
+                continue
+
             # Place input sample on the correct device for all modalities
             for k in sample.keys():
                 sample[k] = sample[k].to(device)

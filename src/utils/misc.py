@@ -443,4 +443,6 @@ class MiscUtils:
         """
         batch = list(filter(lambda x: x is not None, batch))
         # for python2: batch = filter(lambda x: x is not None, batch)
+        if len(batch) == 0:
+            batch = [(-1, -1)]
         return default_collate(batch)

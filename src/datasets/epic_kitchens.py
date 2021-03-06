@@ -356,8 +356,15 @@ class EpicKitchenDataset(BaseDataset):
                 corpus_pth, startF=idx_untrimmed-1, stopF=idx_untrimmed-1,
             ).VideoInfo[idx_untrimmed-1]
 
+            if frame_info.height is None:
+                frame_info.height = 1080
+            if frame_info.width is None:
+                frame_info.width = 1920
+
             cam_center = frame_info.camCenter
             principle_ray_dir = frame_info.principleRayDir
+            if cam_center is None or principle_ray_dir is None:
+                return None
 
             # Find depth wrt to camera coordinates
             depth, projection = project_depth(
@@ -396,7 +403,10 @@ class EpicKitchenDataset(BaseDataset):
 
         # Sort ptid by depth
         zz = [pt3d[k][2] for k in ptid]
-        _, ptid_sort = zip(*sorted(zip(zz, ptid), reverse=True))
+        if zz != [] and ptid != []:
+            _, ptid_sort = zip(*sorted(zip(zz, ptid), reverse=True))
+        else:
+            ptid_sort = []
 
         # Expand wrt depth
         semantic_dict = torch.load(semantic_pth)
