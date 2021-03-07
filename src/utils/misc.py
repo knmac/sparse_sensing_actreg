@@ -349,8 +349,8 @@ class MiscUtils:
             result: (ndarray) output bilateral-filtered image
         """
         # check the input
-        if not isinstance(img_in, np.ndarray) or img_in.dtype != 'float32' or img_in.ndim != 2:
-            raise ValueError('Expected a 2D numpy.ndarray with float32 elements')
+        # if not isinstance(img_in, np.ndarray) or img_in.dtype != 'float32' or img_in.ndim != 2:
+        #     raise ValueError('Expected a 2D numpy.ndarray with float32 elements')
 
         # Gaussian function
         def gaussian(x2, sigma2):
