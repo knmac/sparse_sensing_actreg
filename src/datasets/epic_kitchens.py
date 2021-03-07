@@ -9,6 +9,7 @@ import torch
 import cv2
 import numpy as np
 import pandas as pd
+import skimage.io as sio
 from numpy.random import randint
 from PIL import Image
 from epic_kitchens.meta import training_labels, test_timestamps
@@ -32,8 +33,9 @@ class EpicKitchenDataset(BaseDataset):
                  visual_path=None, audio_path=None, fps=29.94,
                  resampling_rate=44000, num_segments=3, transform=None,
                  use_audio_dict=True, to_shuffle=True,
-                 depth_path=None, depth_tmpl=None,
-                 semantic_path=None, semantic_tmpl=None, full_test_split=None):
+                 depth_path=None, depth_tmpl=None, depth_cache_tmpl=None,
+                 semantic_path=None, semantic_tmpl=None, semantic_cache_tmpl=None,
+                 full_test_split=None):
         """Initialize the dataset
 
         Each sample will be organized as a dictionary as follow
@@ -119,6 +121,8 @@ class EpicKitchenDataset(BaseDataset):
         self.image_tmpl = image_tmpl
         self.depth_tmpl = depth_tmpl
         self.semantic_tmpl = semantic_tmpl
+        self.depth_cache_tmpl = depth_cache_tmpl
+        self.semantic_cache_tmpl = semantic_cache_tmpl
         self.transform = transform
         self.resampling_rate = resampling_rate
         self.fps = fps
@@ -308,6 +312,17 @@ class EpicKitchenDataset(BaseDataset):
                          ).convert('RGB')
         rgb = np.array(rgb)
 
+        # Try to load cached depth and semantic images, if available ----------
+        depth_cache_pth = os.path.join(
+            self.depth_cache_tmpl.format(record.untrimmed_video_name, idx_untrimmed-1))
+        semantic_cache_pth = os.path.join(
+            self.semantic_cache_tmpl.format(record.untrimmed_video_name, idx_untrimmed-1))
+        if os.path.isfile(depth_cache_pth) and os.path.isfile(semantic_cache_pth):
+            depth = sio.imread(depth_cache_pth)
+            semantic = sio.imread(semantic_cache_pth)
+            rgbds = np.dstack([rgb, depth, semantic]).astype(np.uint8)
+            return [rgbds]
+
         # The 4th channel: depth ----------------------------------------------
         # inliers_pth = os.path.join(
         #     self.depth_path, record.untrimmed_video_name,
@@ -426,10 +441,19 @@ class EpicKitchenDataset(BaseDataset):
                      ] = semantic_dict[k]
 
         # Normalize to 0..255 (there are 0..23 classes in total)
-        semantic = (semantic / 23 * 255).astype(int)
+        semantic = (semantic / 23 * 255).astype(np.uint8)
+
+        # Save cache for depth and semantic
+        if not os.path.isdir(os.path.dirname(depth_cache_pth)):
+            os.makedirs(os.path.dirname(depth_cache_pth))
+        sio.imsave(depth_cache_pth, depth.astype(np.uint8))
+
+        if not os.path.isdir(os.path.dirname(semantic_cache_pth)):
+            os.makedirs(os.path.dirname(semantic_cache_pth))
+        sio.imsave(semantic_cache_pth, semantic.astype(np.uint8))
 
         # Combine the channels
-        rgbds = np.dstack([rgb, depth, semantic]).astype(np.float32)
+        rgbds = np.dstack([rgb, depth, semantic]).astype(np.uint8)
         return [rgbds]
 
     def _sample_indices(self, record, modality):
