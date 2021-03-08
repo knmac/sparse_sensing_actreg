@@ -444,12 +444,10 @@ class EpicKitchenDataset(BaseDataset):
         semantic = (semantic / 23 * 255).astype(np.uint8)
 
         # Save cache for depth and semantic
-        if not os.path.isdir(os.path.dirname(depth_cache_pth)):
-            os.makedirs(os.path.dirname(depth_cache_pth))
+        os.makedirs(os.path.dirname(depth_cache_pth), exist_ok=True)
         sio.imsave(depth_cache_pth, depth.astype(np.uint8), check_contrast=False)
 
-        if not os.path.isdir(os.path.dirname(semantic_cache_pth)):
-            os.makedirs(os.path.dirname(semantic_cache_pth))
+        os.makedirs(os.path.dirname(semantic_cache_pth), exist_ok=True)
         sio.imsave(semantic_cache_pth, semantic.astype(np.uint8), check_contrast=False)
 
         # Combine the channels
