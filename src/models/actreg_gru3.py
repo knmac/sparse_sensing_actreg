@@ -1,5 +1,7 @@
 """Action recognition using GRU with Multihead, each head is ActregGRU2
 """
+import os
+
 from .base_model import BaseModel
 from .actreg_gru2 import ActregGRU2
 
@@ -37,19 +39,26 @@ class ActregGRU3(BaseModel):
             'rnn_num_layers': rnn_num_layers,
             'consensus_type': consensus_type,
         }
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         if weight_global > 0:
             self.actreg_global = ActregGRU2(extra_dim=dim_global, **opts)
             if pretrained_global is not None:
+                if not os.path.isfile(pretrained_global):
+                    pretrained_global = os.path.join(root, pretrained_global)
                 self.actreg_global.load_model(pretrained_global)
 
         if weight_local > 0:
             self.actreg_local = ActregGRU2(extra_dim=dim_local, **opts)
             if pretrained_local is not None:
+                if not os.path.isfile(pretrained_local):
+                    pretrained_local = os.path.join(root, pretrained_local)
                 self.actreg_local.load_model(pretrained_local)
 
         if weight_both > 0:
             self.actreg_both = ActregGRU2(extra_dim=dim_local+dim_global, **opts)
             if pretrained_both is not None:
+                if not os.path.isfile(pretrained_both):
+                    pretrained_both = os.path.join(root, pretrained_both)
                 self.actreg_both.load_model(pretrained_both)
 
     def forward(self, x, hidden=None):
