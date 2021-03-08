@@ -63,11 +63,21 @@ class Pipeline8(BaseModel):
         })
         self.low_feat_model = model_factory.generate(name, device=device, **params)
 
+        # Pivot modality to extract attention
+        if 'RGB' in self.modality:
+            self._pivot_mod_name = 'RGB'
+            self._pivot_mod_fn = self.low_feat_model.rgb
+        elif 'RGBDS' in self.modality:
+            self._pivot_mod_name = 'RGBDS'
+            self._pivot_mod_fn = self.low_feat_model.rgbds
+        else:
+            raise NotImplementedError
+
         # Generate feature extraction models for high resolutions
         name, params = ConfigLoader.load_model_cfg(high_feat_model_cfg)
         params.update({
             'new_length': self.new_length,
-            'modality': ['RGB'],  # Remove spec because low_model already has it
+            'modality': [self._pivot_mod_name],  # Remove spec because low_model already has it
             'using_cupy': self.using_cupy,
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
@@ -155,10 +165,15 @@ class Pipeline8(BaseModel):
         opts = {'as_strings': False, 'print_per_layer_stat': False}
 
         # RGB - low res -------------------------------------------------------
-        rgb_low_indim = self.low_feat_model.input_size['RGB']
-        rgb_low_flops, rgb_low_params = get_model_complexity_info(
-            self.low_feat_model.rgb, (3, rgb_low_indim, rgb_low_indim), **opts)
-        flops_dict, param_dict = MiscUtils.collect_flops(self.low_feat_model.rgb)
+        rgb_low_indim = self.low_feat_model.input_size[self._pivot_mod_name]
+        if self._pivot_mod_name == 'RGB':
+            rgb_low_flops, rgb_low_params = get_model_complexity_info(
+                self.low_feat_model.rgb, (3, rgb_low_indim, rgb_low_indim), **opts)
+            flops_dict, param_dict = MiscUtils.collect_flops(self.low_feat_model.rgb)
+        elif self._pivot_mod_name == 'RGBDS':
+            rgb_low_flops, rgb_low_params = get_model_complexity_info(
+                self.low_feat_model.rgbds, (5, rgb_low_indim, rgb_low_indim), **opts)
+            flops_dict, param_dict = MiscUtils.collect_flops(self.low_feat_model.rgbds)
 
         rgb_low_first_flops, rgb_low_first_params = 0, 0
         for k in flops_dict:
@@ -172,18 +187,24 @@ class Pipeline8(BaseModel):
         rgb_low_flops *= 1e-9
         rgb_low_first_flops *= 1e-9
         rgb_low_second_flops *= 1e-9
-        logger.info('RGB low (%03d):      GFLOPS=%.04f' % (rgb_low_indim, rgb_low_flops))
+        logger.info('%s low (%03d):      GFLOPS=%.04f' %
+                    (self._pivot_mod_name, rgb_low_indim, rgb_low_flops))
         logger.info('- 1st half:         GFLOPS=%.04f' % rgb_low_first_flops)
         logger.info('- 2nd half:         GFLOPS=%.04f' % rgb_low_second_flops)
 
         # RGB - cropped high res ----------------------------------------------
         assert self.spatial_sampler.min_b_size == self.spatial_sampler.max_b_size
         sampling_size = self.spatial_sampler.max_b_size
-        rgb_high_flops, rgb_high_params = get_model_complexity_info(
-            self.high_feat_model.rgb, (3, sampling_size, sampling_size), **opts)
+        if self._pivot_mod_name == 'RGB':
+            rgb_high_flops, rgb_high_params = get_model_complexity_info(
+                self.high_feat_model.rgb, (3, sampling_size, sampling_size), **opts)
+        elif self._pivot_mod_name == 'RGBDS':
+            rgb_high_flops, rgb_high_params = get_model_complexity_info(
+                self.high_feat_model.rgbds, (5, sampling_size, sampling_size), **opts)
         rgb_high_flops = rgb_high_flops * self.spatial_sampler.top_k * 1e-9
-        logger.info('RGB high (%03d, %dx): GFLOPS=%.04f' %
-                    (sampling_size, self.spatial_sampler.top_k, rgb_high_flops))
+        logger.info('%s high (%03d, %dx): GFLOPS=%.04f' %
+                    (self._pivot_mod_name, sampling_size,
+                     self.spatial_sampler.top_k, rgb_high_flops))
 
         # Spec ----------------------------------------------------------------
         self.low_feat_model.input_size['Spec'] = 256
@@ -208,7 +229,7 @@ class Pipeline8(BaseModel):
 
         # Time sampler --------------------------------------------------------
         time_sampler_flops, time_sampler_params = get_model_complexity_info(
-            self.temporal_sampler, (2, 32, 7, 7), **opts)
+            self.temporal_sampler, tuple([2]+self.attention_dim), **opts)
         time_sampler_flops *= 1e-9
         logger.info('Time sampler:       GFLOPS=%.4f' % time_sampler_flops)
 
@@ -245,8 +266,8 @@ class Pipeline8(BaseModel):
         Return:
             Low resolution version of x
         """
-        high_dim = self.high_feat_model.input_size['RGB']
-        low_dim = self.low_feat_model.input_size['RGB']
+        high_dim = self.high_feat_model.input_size[self._pivot_mod_name]
+        low_dim = self.low_feat_model.input_size[self._pivot_mod_name]
         down_factor = high_dim / low_dim
 
         if isinstance(down_factor, int):
@@ -257,14 +278,15 @@ class Pipeline8(BaseModel):
         """Forwad a sequence of frame
         """
         assert output_mode in ['avg_all', 'avg_non_skip', 'raw']
-        rgb_high = x['RGB']
+        rgb_high = x[self._pivot_mod_name]
         rgb_low = self._downsample(rgb_high)
         spec = x['Spec']
         batch_size = rgb_high.shape[0]
 
         # (B, T*C, H, W) -> (B, T, C, H, W)
-        rgb_low = rgb_low.view((-1, self.num_segments, 3) + rgb_low.size()[-2:])
-        rgb_high = rgb_high.view((-1, self.num_segments, 3) + rgb_high.size()[-2:])
+        n_channels = rgb_low.shape[1] // self.num_segments
+        rgb_low = rgb_low.view((-1, self.num_segments, n_channels) + rgb_low.size()[-2:])
+        rgb_high = rgb_high.view((-1, self.num_segments, n_channels) + rgb_high.size()[-2:])
         spec = spec.view((-1, self.num_segments, 1) + spec.size()[-2:])
 
         # =====================================================================
@@ -272,12 +294,12 @@ class Pipeline8(BaseModel):
         # =====================================================================
         # First half of feature low rgb feat --> (B, T, C, H, W)
         prescan_feat = self.first_half_forward(
-            rgb_low.view((-1, 3) + rgb_low.size()[-2:]), self.low_feat_model.rgb
+            rgb_low.view((-1, n_channels) + rgb_low.size()[-2:]), self._pivot_mod_fn
         )
         prescan_feat = prescan_feat.view((-1, self.num_segments) + prescan_feat.size()[-3:])
 
         # Get attention of all frames --> (B, T, C, H, W)
-        attn = self.low_feat_model.rgb.get_attention_weight(
+        attn = self._pivot_mod_fn.get_attention_weight(
             l_name=self.attention_layer[0],
             m_name=self.attention_layer[1],
             aggregated=True,
@@ -287,7 +309,7 @@ class Pipeline8(BaseModel):
 
         # Second half of RGB low
         low_feat = self.second_half_forward(
-            prescan_feat.view((-1,)+prescan_feat.size()[-3:]), self.low_feat_model.rgb)
+            prescan_feat.view((-1,)+prescan_feat.size()[-3:]), self._pivot_mod_fn)
         low_feat = low_feat.view(-1, self.num_segments, low_feat.shape[-1])
 
         # Spec
@@ -502,7 +524,7 @@ class Pipeline8(BaseModel):
             right = bboxes[0, k, 3]
 
             region = rgb_high[:, :, top:bottom, left:right]
-            high_feat_k = self.high_feat_model({'RGB': region})
+            high_feat_k = self.high_feat_model({self._pivot_mod_name: region})
             high_feat.append(high_feat_k)
 
         # Action recognition --------------------------------------------------
@@ -647,7 +669,7 @@ class Pipeline8(BaseModel):
             right = bboxes[0, k, 3]
 
             region = rgb_high[:, :, top:bottom, left:right]
-            high_feat_k = self.high_feat_model({'RGB': region})
+            high_feat_k = self.high_feat_model({self._pivot_mod_name: region})
             high_feat.append(high_feat_k)
 
         # Action recognition --------------------------------------------------
@@ -702,7 +724,7 @@ class Pipeline8(BaseModel):
             # Run from layer3_1 to the end of layer3
             x = san.relu(san.bn3(san.layer3[1:](x)))
             x = san.relu(san.bn4(san.layer4(san.conv4(san.pool(x)))))
-        elif self.attention_dim == ['layer2', '3']:
+        elif self.attention_layer == ['layer2', '3']:
             x = san.relu(san.bn3(san.layer3(san.conv3(san.pool(x)))))
             x = san.relu(san.bn4(san.layer4(san.conv4(san.pool(x)))))
         else:

@@ -56,11 +56,21 @@ class Pipeline5(BaseModel):
         })
         self.low_feat_model = model_factory.generate(name, device=device, **params)
 
+        # Pivot modality to extract attention
+        if 'RGB' in self.modality:
+            self._pivot_mod_name = 'RGB'
+            self._pivot_mod_fn = self.low_feat_model.rgb
+        elif 'RGBDS' in self.modality:
+            self._pivot_mod_name = 'RGBDS'
+            self._pivot_mod_fn = self.low_feat_model.rgbds
+        else:
+            raise NotImplementedError
+
         # Generate feature extraction models for high resolutions
         name, params = ConfigLoader.load_model_cfg(high_feat_model_cfg)
         params.update({
             'new_length': self.new_length,
-            'modality': ['RGB'],  # Remove spec because low_model already has it
+            'modality': [self._pivot_mod_name],  # Remove spec because low_model already has it
             'using_cupy': self.using_cupy,
         })
         self.high_feat_model = model_factory.generate(name, device=device, **params)
@@ -147,8 +157,8 @@ class Pipeline5(BaseModel):
         Return:
             Low resolution version of x
         """
-        high_dim = self.high_feat_model.input_size['RGB']
-        low_dim = self.low_feat_model.input_size['RGB']
+        high_dim = self.high_feat_model.input_size[self._pivot_mod_name]
+        low_dim = self.low_feat_model.input_size[self._pivot_mod_name]
         down_factor = high_dim / low_dim
 
         if isinstance(down_factor, int):
@@ -156,15 +166,17 @@ class Pipeline5(BaseModel):
         return F.interpolate(x, size=low_dim, mode='bilinear', align_corners=False)
 
     def forward(self, x):
-        _rgb_high = x['RGB']
+        _rgb_high = x[self._pivot_mod_name]
         _rgb_low = self._downsample(_rgb_high)
         _spec = x['Spec']
         batch_size = _rgb_high.shape[0]
 
         # Extract low resolutions features ------------------------------------
-        assert self.low_feat_model.modality == ['RGB', 'Spec']
-        low_feat, spec_feat = self.low_feat_model({'RGB': _rgb_low, 'Spec': _spec},
-                                                  return_concat=False)
+        assert self.low_feat_model.modality == ['RGB', 'Spec'] or \
+            self.low_feat_model.modality == ['RGBDS', 'Spec']
+        low_feat, spec_feat = self.low_feat_model(
+            {self._pivot_mod_name: _rgb_low, 'Spec': _spec},
+            return_concat=False)
 
         # (B*T, C) --> (B, T, C)
         low_feat = low_feat.view([batch_size,
@@ -186,7 +198,7 @@ class Pipeline5(BaseModel):
             pass
 
         # Retrieve attention --------------------------------------------------
-        attn = self.low_feat_model.rgb.get_attention_weight(
+        attn = self._pivot_mod_fn.get_attention_weight(
             l_name=self.attention_layer[0],
             m_name=self.attention_layer[1],
             aggregated=True,
@@ -200,7 +212,8 @@ class Pipeline5(BaseModel):
             attn, _rgb_high.shape[-1], reorder=True, avg_across_time=True)
 
         # (B, T*C, H, W) -> (B, T, C, H, W)
-        _rgb_high = _rgb_high.view((-1, self.num_segments, 3) + _rgb_high.size()[-2:])
+        n_channels = _rgb_high.shape[1] // self.num_segments
+        _rgb_high = _rgb_high.view((-1, self.num_segments, n_channels) + _rgb_high.size()[-2:])
         # self._check(_rgb_high, attn, bboxes)
 
         # Extract regions and feed in high_feat_model
@@ -230,7 +243,7 @@ class Pipeline5(BaseModel):
                      regions_k_b.shape[3], regions_k_b.shape[4]])
 
                 # Feed the regions to high_feat_model
-                out = self.high_feat_model({'RGB': regions_k_b})
+                out = self.high_feat_model({self._pivot_mod_name: regions_k_b})
                 high_feat_k.append(out.unsqueeze(dim=0))
 
             # Concat across batch dim and collect
