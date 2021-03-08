@@ -444,11 +444,14 @@ class EpicKitchenDataset(BaseDataset):
         semantic = (semantic / 23 * 255).astype(np.uint8)
 
         # Save cache for depth and semantic
-        os.makedirs(os.path.dirname(depth_cache_pth), exist_ok=True)
-        sio.imsave(depth_cache_pth, depth.astype(np.uint8), check_contrast=False)
+        try:
+            os.makedirs(os.path.dirname(depth_cache_pth), exist_ok=True)
+            sio.imsave(depth_cache_pth, depth.astype(np.uint8), check_contrast=False)
 
-        os.makedirs(os.path.dirname(semantic_cache_pth), exist_ok=True)
-        sio.imsave(semantic_cache_pth, semantic.astype(np.uint8), check_contrast=False)
+            os.makedirs(os.path.dirname(semantic_cache_pth), exist_ok=True)
+            sio.imsave(semantic_cache_pth, semantic.astype(np.uint8), check_contrast=False)
+        except Exception:
+            pass
 
         # Combine the channels
         rgbds = np.dstack([rgb, depth, semantic]).astype(np.uint8)
