@@ -25,13 +25,6 @@ class TemporalSamplerRNN(BaseModel):
         self.use_hallu = use_hallu
         self.use_ssim = use_ssim
 
-        self.rnn = nn.GRU(
-            input_size=rnn_input_size,
-            hidden_size=rnn_hidden_size,
-            num_layers=rnn_num_layers,
-            batch_first=True,
-        ).to(self.device)
-
         assert use_attn or use_hallu or use_ssim, 'Must use at least 1 input'
         input_dim = 0
         if use_attn:
@@ -42,11 +35,22 @@ class TemporalSamplerRNN(BaseModel):
             input_dim += 1
             self.belief_criterion = SSIM(window_size=3, channel=attention_dim[0])
 
-        self.fc_fus = nn.Linear(input_dim, rnn_input_size)
+        if rnn_input_size is not None:
+            self.fc_fus = nn.Linear(input_dim, rnn_input_size)
+        else:
+            self.fc_fus = None
+            rnn_input_size = input_dim  # Overwrite rnn_input_size
         self.fc_out = nn.Linear(rnn_hidden_size, max_frames_skip+1)  # Include no skipping
         self.softmax = nn.Softmax(dim=1)
 
         self.old_hidden = None  # old hidden memory
+
+        self.rnn = nn.GRU(
+            input_size=rnn_input_size,
+            hidden_size=rnn_hidden_size,
+            num_layers=rnn_num_layers,
+            batch_first=True,
+        ).to(self.device)
 
     def reset(self):
         """Reset memory
@@ -80,7 +84,8 @@ class TemporalSamplerRNN(BaseModel):
         x = torch.cat(x, dim=1).unsqueeze(dim=1)  # (N, 1, C) -> sequence of 1
 
         # Feed to RNN
-        x = self.fc_fus(x)
+        if self.fc_fus is not None:
+            x = self.fc_fus(x)
         x, hidden = self.rnn(x, self.old_hidden)
         self.old_hidden = hidden
         out = self.fc_out(x).squeeze(dim=1)
