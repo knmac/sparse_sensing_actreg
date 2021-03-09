@@ -318,10 +318,19 @@ class EpicKitchenDataset(BaseDataset):
         semantic_cache_pth = os.path.join(
             self.semantic_cache_tmpl.format(record.untrimmed_video_name, idx_untrimmed-1))
         if os.path.isfile(depth_cache_pth) and os.path.isfile(semantic_cache_pth):
-            depth = sio.imread(depth_cache_pth)
-            semantic = sio.imread(semantic_cache_pth)
-            rgbds = np.dstack([rgb, depth, semantic]).astype(np.uint8)
-            return [rgbds]
+            cnt = 0
+            depth, semantic = None, None
+            # Try to load the cache a few times, if can't load -> recache
+            while cnt <= 3:
+                try:
+                    depth = sio.imread(depth_cache_pth)
+                    semantic = sio.imread(semantic_cache_pth)
+                    break
+                except ValueError:
+                    cnt += 1
+            if (depth is not None) and (semantic is not None):
+                rgbds = np.dstack([rgb, depth, semantic]).astype(np.uint8)
+                return [rgbds]
 
         # The 4th channel: depth ----------------------------------------------
         # inliers_pth = os.path.join(
