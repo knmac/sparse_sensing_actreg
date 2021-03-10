@@ -19,6 +19,9 @@ __DEBUG_NOBELIEF__ = False
 def train_val(model, device, criterion, train_loader, val_loader, train_params, args):
     """Training and validation routine. It will call val() automatically
     """
+    # =========================================================================
+    # Prepare for train val
+    # =========================================================================
     # Freeze stream weights (leaves only fusion and classification trainable)
     if train_params['freeze']:
         model.freeze_fn('modalities')
@@ -51,8 +54,9 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
     # Train with multiple GPUs
     model = torch.nn.DataParallel(model, device_ids=args.gpus).to(device)
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Go through all epochs
+    # =========================================================================
     for epoch in range(start_epoch, train_params['n_epochs']):
         scheduler.step()
 
@@ -102,7 +106,9 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
             sum_writer.add_scalar('data/temperature', model.module.temperature, run_iter)
             model.module.decay_temperature()
 
+    # =========================================================================
     # Done training
+    # =========================================================================
     sum_writer.close()
 
 
@@ -163,6 +169,32 @@ def _setup_training(model, optimizer, device, train_params, args):
     return start_epoch, lr, model, best_val
 
 
+def _compute_loss_acc(output, target, criterion, has_multihead):
+    """Compute accuracy loss for single head or multi head output
+    """
+    if not has_multihead:
+        loss_verb = criterion(output[0], target['verb'])
+        loss_noun = criterion(output[1], target['noun'])
+        loss = loss_verb + loss_noun  # accuracy loss
+        verb_output = output[0]
+        noun_output = output[1]
+    else:
+        n_heads = len(output) // 2
+        loss_verb, loss_noun = 0, 0
+        verb_output, noun_output = None, None
+        for h in range(n_heads):
+            _out, _weight = output[2*h], output[2*h+1]
+            _weight = _weight[0][0]
+            loss_verb += _weight * criterion(_out[0], target['verb'])
+            loss_noun += _weight * criterion(_out[1], target['noun'])
+            verb_output = _out[0] if verb_output is None else verb_output+_out[0]
+            noun_output = _out[1] if noun_output is None else noun_output+_out[1]
+        loss = loss_verb + loss_noun  # accuracy loss
+        verb_output /= n_heads
+        noun_output /= n_heads
+    return loss, loss_verb, loss_noun, verb_output, noun_output
+
+
 def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                      sum_writer, epoch, run_iter, train_params):
     """Train one single epoch
@@ -171,6 +203,10 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     clip_gradient = float(train_params['clip_gradient'])
     has_belief = hasattr(model.module, 'compare_belief')
     has_eff = hasattr(model.module, 'compute_efficiency_loss')
+    if hasattr(model.module, 'actreg_model'):
+        multihead = type(model.module.actreg_model).__name__ in ['ActregGRU3']
+    else:
+        multihead = False
     n_extra_losses = sum([has_belief, has_eff])
 
     # Switch to train mode
@@ -199,7 +235,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     if has_eff:
         eff_losses = AverageMeter()
 
+    # =========================================================================
     # Training loop
+    # =========================================================================
     end = time.time()
     for i, (sample, target) in enumerate(train_loader):
         # Skip broken batches
@@ -213,7 +251,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         for k in sample.keys():
             sample[k] = sample[k].to(device)
 
-        # Forward
+        # Forward -------------------------------------------------------------
         if n_extra_losses > 0:
             if has_belief:
                 output, loss_belief = model(sample)
@@ -229,16 +267,17 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         else:
             output = model(sample)
 
-        # Compute metrics
+        # Compute metrics -----------------------------------------------------
         batch_size = sample[model.module.modality[0]].size(0)
         if dataset != 'epic_kitchens':
             # Repeat the target for all frame if necessary
-            if output.ndim == 3:
-                n_frames = output.shape[1]
-                target = torch.unsqueeze(target, dim=1).repeat(1, n_frames).view(-1).to(device)
-                output = output.view(-1, output.shape[-1])
-            else:
-                target = target.to(device)
+            # if output.ndim == 3:
+            #     n_frames = output.shape[1]
+            #     target = torch.unsqueeze(target, dim=1).repeat(1, n_frames).view(-1).to(device)
+            #     output = output.view(-1, output.shape[-1])
+            # else:
+            #     target = target.to(device)
+            target = target.to(device)
 
             loss = criterion(output, target)  # accuracy loss
             if has_belief and (not __DEBUG_NOBELIEF__):
@@ -251,18 +290,19 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
             prec1, prec5 = accuracy(output, target, topk=(1, 5))
         else:
             # Repeat the target for all frame if necessary
-            if output[0].ndim == 3:
-                n_frames = output[0].shape[1]
-                for k in target:
-                    target[k] = torch.unsqueeze(target[k], dim=1).repeat(1, n_frames).view(-1).to(device)
-                output = (output[0].view(-1, output[0].shape[-1]),
-                          output[1].view(-1, output[1].shape[-1]))
-            else:
-                target = {k: v.to(device) for k, v in target.items()}
+            # if output[0].ndim == 3:
+            #     n_frames = output[0].shape[1]
+            #     for k in target:
+            #         target[k] = torch.unsqueeze(target[k], dim=1).repeat(1, n_frames).view(-1).to(device)
+            #     output = (output[0].view(-1, output[0].shape[-1]),
+            #               output[1].view(-1, output[1].shape[-1]))
+            # else:
+            #     target = {k: v.to(device) for k, v in target.items()}
+            target = {k: v.to(device) for k, v in target.items()}
 
-            loss_verb = criterion(output[0], target['verb'])
-            loss_noun = criterion(output[1], target['noun'])
-            loss = loss_verb + loss_noun  # accuracy loss
+            # Compute loss for batch
+            loss, loss_verb, loss_noun, verb_output, noun_output = _compute_loss_acc(
+                output, target, criterion, multihead)
             if has_belief and (not __DEBUG_NOBELIEF__):
                 loss += loss_belief
                 belief_losses.update(loss_belief.item(), batch_size)
@@ -271,11 +311,10 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                 eff_losses.update(loss_eff.item(), batch_size)
             loss = loss / (n_extra_losses + 2)
 
+            # Update batch metrics
             verb_losses.update(loss_verb.item(), batch_size)
             noun_losses.update(loss_noun.item(), batch_size)
 
-            verb_output = output[0]
-            noun_output = output[1]
             verb_prec1, verb_prec5 = accuracy(verb_output, target['verb'], topk=(1, 5))
             verb_top1.update(verb_prec1, batch_size)
             verb_top5.update(verb_prec5, batch_size)
@@ -291,7 +330,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         top1.update(prec1, batch_size)
         top5.update(prec5, batch_size)
 
-        # Compute gradient and do optimizer step
+        # Compute gradient and do optimizer step ------------------------------
         optimizer.zero_grad()
         loss.backward()
         if clip_gradient is not None:
@@ -306,7 +345,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         batch_time.update(time.time() - end)
         end = time.time()
 
-        # Print out message
+        # Print out message ---------------------------------------------------
         if i % train_params['print_freq'] == 0:
             _lr = optimizer.param_groups[-1]['lr']
 
@@ -330,7 +369,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
 
             _log_message('training', sum_writer, run_iter, log_content, msg_prefix)
 
+    # =========================================================================
     # Collect training metrics
+    # =========================================================================
     if dataset != 'epic_kitchens':
         training_metrics = {'train_loss': losses.avg, 'train_acc': top1.avg}
     else:
@@ -353,6 +394,10 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
     dataset = val_loader.dataset.name
     has_belief = hasattr(model.module, 'compare_belief')
     has_eff = hasattr(model.module, 'compute_efficiency_loss')
+    if hasattr(model.module, 'actreg_model'):
+        multihead = type(model.module.actreg_model).__name__ == 'ActregGRU3'
+    else:
+        multihead = False
     n_extra_losses = sum([has_belief, has_eff])
 
     # Swith to eval mode
@@ -377,7 +422,9 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             eff_losses = AverageMeter()
             all_gflops = []
 
+        # =====================================================================
         # Validation loop
+        # =====================================================================
         end = time.time()
         for i, (sample, target) in enumerate(val_loader):
             # Skip broken batches
@@ -388,7 +435,7 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             for k in sample.keys():
                 sample[k] = sample[k].to(device)
 
-            # Forward
+            # Forward ---------------------------------------------------------
             if n_extra_losses > 0:
                 if has_belief:
                     output, loss_belief = model(sample)
@@ -404,11 +451,11 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             else:
                 output = model(sample)
 
-            # Compute metrics
+            # Compute metrics -------------------------------------------------
             batch_size = sample[model.module.modality[0]].size(0)
             if dataset != 'epic_kitchens':
-                if output.ndim == 3:
-                    output = output[:, -1, :]
+                # if output.ndim == 3:
+                #     output = output[:, -1, :]
                 target = target.to(device)
                 loss = criterion(output, target)  # accuracy loss
                 if has_belief and (not __DEBUG_NOBELIEF__):
@@ -421,12 +468,13 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                 prec1, prec5 = accuracy(output, target, topk=(1, 5))
             else:
                 # Pick the last frame to validate
-                if output[0].ndim == 3:
-                    output = (output[0][:, -1, :], output[1][:, -1, :])
+                # if output[0].ndim == 3:
+                #     output = (output[0][:, -1, :], output[1][:, -1, :])
                 target = {k: v.to(device) for k, v in target.items()}
-                loss_verb = criterion(output[0], target['verb'])
-                loss_noun = criterion(output[1], target['noun'])
-                loss = loss_verb + loss_noun  # accuracy loss
+
+                # Compute loss for batch
+                loss, loss_verb, loss_noun, verb_output, noun_output = _compute_loss_acc(
+                    output, target, criterion, multihead)
                 if has_belief and (not __DEBUG_NOBELIEF__):
                     loss += loss_belief
                     belief_losses.update(loss_belief.item(), batch_size)
@@ -435,11 +483,10 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                     eff_losses.update(loss_eff.item(), batch_size)
                 loss = loss / (n_extra_losses + 2)
 
+                # Update batch metrics
                 verb_losses.update(loss_verb.item(), batch_size)
                 noun_losses.update(loss_noun.item(), batch_size)
 
-                verb_output = output[0]
-                noun_output = output[1]
                 verb_prec1, verb_prec5 = accuracy(verb_output, target['verb'], topk=(1, 5))
                 verb_top1.update(verb_prec1, batch_size)
                 verb_top5.update(verb_prec5, batch_size)
@@ -463,7 +510,9 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         if has_eff:
             all_gflops = torch.cat(all_gflops, dim=0)
 
+        # =====================================================================
         # Print out message
+        # =====================================================================
         msg_prefix = 'Testing results:\n'
         log_content = {'losses': losses, 'top1': top1, 'top5': top5}
 
@@ -485,7 +534,9 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             })
         _log_message('validation', sum_writer, run_iter, log_content, msg_prefix)
 
+        # =====================================================================
         # Collect validation metrics
+        # =====================================================================
         if dataset != 'epic_kitchens':
             val_metrics = {'val_loss': losses.avg, 'val_acc': top1.avg}
         else:

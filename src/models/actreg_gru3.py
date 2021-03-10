@@ -2,6 +2,8 @@
 """
 import os
 
+import torch
+
 from .base_model import BaseModel
 from .actreg_gru2 import ActregGRU2
 
@@ -80,30 +82,24 @@ class ActregGRU3(BaseModel):
         assert x_local.shape[-1] == self.dim_local
 
         # Multi head RNNs
-        if isinstance(self.num_class, (list, tuple)):
-            output = [0.0, 0.0]
-        else:
-            output = 0.0
+        output = []
 
         if self.weight_global > 0:
             output_global, hidden_global = self.actreg_global(x_global, hidden_global)
-            output = self.combine_output(output, output_global, self.weight_global)
+            output += [output_global, self.repeat_weight(self.weight_global, x)]
 
         if self.weight_local > 0:
             output_local, hidden_local = self.actreg_local(x_local, hidden_local)
-            output = self.combine_output(output, output_local, self.weight_local)
+            output += [output_local, self.repeat_weight(self.weight_local, x)]
 
         if self.weight_both > 0:
             output_both, hidden_both = self.actreg_both(x, hidden_both)
-            output = self.combine_output(output, output_both, self.weight_both)
+            output += [output_both, self.repeat_weight(self.weight_both, x)]
 
         hidden = [hidden_global, hidden_local, hidden_both]
         return tuple(output), hidden
 
-    def combine_output(self, all_output, individual_output, weight):
-        if isinstance(self.num_class, (list, tuple)):
-            all_output[0] += individual_output[0]*weight
-            all_output[1] += individual_output[1]*weight
-        else:
-            all_output += individual_output*weight
-        return all_output
+    def repeat_weight(self, weight, x):
+        batch_size = x.shape[0]
+        return torch.repeat_interleave(torch.tensor([[weight]]),
+                                       batch_size, dim=0).to(x.device)
