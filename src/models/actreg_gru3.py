@@ -13,15 +13,21 @@ class ActregGRU3(BaseModel):
     def __init__(self, device, modality, num_class, dropout,
                  dim_global, dim_local, rnn_hidden_size, rnn_num_layers,
                  consensus_type, weight_global, weight_local, weight_both,
-                 pretrained_global, pretrained_local, pretrained_both):
+                 pretrained_global, pretrained_local, pretrained_both,
+                 use_spec_in_global=True, dim_spec=2048):
         super(ActregGRU3, self).__init__(device)
 
         self.modality = modality
         self.num_class = num_class
         self.dropout = dropout
+        self.use_spec_in_global = use_spec_in_global
 
         self.dim_global = dim_global
-        self.dim_local = dim_local
+        if use_spec_in_global:
+            self.dim_spec = dim_spec
+            self.dim_local = dim_spec + dim_local
+        else:
+            self.dim_local = dim_local
         self.rnn_hidden_size = rnn_hidden_size
         self.rnn_num_layers = rnn_num_layers
         self.consensus_type = consensus_type
@@ -50,7 +56,7 @@ class ActregGRU3(BaseModel):
                 self.actreg_global.load_model(pretrained_global)
 
         if weight_local > 0:
-            self.actreg_local = ActregGRU2(extra_dim=dim_local, **opts)
+            self.actreg_local = ActregGRU2(extra_dim=self.dim_local, **opts)
             if pretrained_local is not None:
                 if not os.path.isfile(pretrained_local):
                     pretrained_local = os.path.join(root, pretrained_local)
@@ -77,9 +83,13 @@ class ActregGRU3(BaseModel):
             hidden_global, hidden_local, hidden_both = hidden
 
         # Process concatenated input
-        x_global = x[..., :self.dim_global]
-        x_local = x[..., self.dim_global:]
-        assert x_local.shape[-1] == self.dim_local
+        if not self.use_spec_in_global:
+            x_global = x[..., :self.dim_global]
+            x_local = x[..., self.dim_global:]
+            assert x_local.shape[-1] == self.dim_local
+        else:
+            x_global = x[..., :self.dim_global]
+            x_local = x[..., self.dim_spec:]
 
         # Multi head RNNs
         output = []
