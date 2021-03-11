@@ -14,16 +14,16 @@ class ActregGRU3(BaseModel):
                  dim_global, dim_local, rnn_hidden_size, rnn_num_layers,
                  consensus_type, weight_global, weight_local, weight_both,
                  pretrained_global, pretrained_local, pretrained_both,
-                 use_spec_in_global=True, dim_spec=2048):
+                 use_spec_in_local=True, dim_spec=2048):
         super(ActregGRU3, self).__init__(device)
 
         self.modality = modality
         self.num_class = num_class
         self.dropout = dropout
-        self.use_spec_in_global = use_spec_in_global
+        self.use_spec_in_local = use_spec_in_local
 
         self.dim_global = dim_global
-        if use_spec_in_global:
+        if use_spec_in_local:
             self.dim_spec = dim_spec
             self.dim_local = dim_spec + dim_local
         else:
@@ -83,7 +83,7 @@ class ActregGRU3(BaseModel):
             hidden_global, hidden_local, hidden_both = hidden
 
         # Process concatenated input
-        if not self.use_spec_in_global:
+        if not self.use_spec_in_local:
             x_global = x[..., :self.dim_global]
             x_local = x[..., self.dim_global:]
             assert x_local.shape[-1] == self.dim_local
