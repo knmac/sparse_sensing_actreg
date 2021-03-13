@@ -580,6 +580,10 @@ class EpicKitchenDataset(BaseDataset):
         matched_1 = matched_1 / [scale_w, scale_h]
         matched_2 = matched_2 / [scale_w, scale_h]
 
+        # No match -> no compensation
+        if len(matched_1) == 0 or len(matched_2) == 0:
+            return img
+
         # Warp the frame wrt the pivot
         warp_mat, _ = cv2.estimateAffine2D(matched_2, matched_1)
         warpped = Image.fromarray(cv2.warpAffine(np.array(img), warp_mat, img.size))

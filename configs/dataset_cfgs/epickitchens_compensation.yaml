@@ -18,4 +18,5 @@ dataset_params:
     semantic_cache_tmpl: 'data/EPIC_KITCHENS_2018/ds_cache/{}/semantic_{:04d}.png'
     resampling_rate: 24000
     fps: 60
+    to_shuffle: False
     has_motion_compensation: True
