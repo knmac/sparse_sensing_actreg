@@ -7,8 +7,6 @@ clip_gradient: 20.0  # Gradient norm clipping. Default = None
 partialbn: True
 freeze: False  # freeze all weights except fusion
 eval_freq: 1
-optimizer: 'SGD'
+optimizer: 'Adam'
 optim_params:
     lr: 0.0003
-    momentum: 0.9
-    weight_decay: 1.e-4
