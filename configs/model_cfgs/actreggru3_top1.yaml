@@ -6,6 +6,6 @@ model_params:
     weight_global: 0.3
     weight_local: 0.3
     weight_both: 0.4
-    pretrained_global: ~
-    pretrained_local: ~
-    pretrained_both: 'pretrained/finetuned/actreggru2_top1_cat__nofc1_1024hid_2lay/actreg.model'
+    pretrained_global: 'pretrained/finetuned/actreggru2_top0_cat__nofc1_1024hid_2lay/actreg.model'
+    pretrained_local:  'pretrained/finetuned/actreggru2_top1_cat__nofc1_1024hid_2lay_nolowres/actreg.model'
+    pretrained_both:   'pretrained/finetuned/actreggru2_top1_cat__nofc1_1024hid_2lay/actreg.model'
