@@ -35,7 +35,7 @@ class EpicKitchenDataset(BaseDataset):
                  use_audio_dict=True, to_shuffle=True,
                  depth_path=None, depth_tmpl=None, depth_cache_tmpl=None,
                  semantic_path=None, semantic_tmpl=None, semantic_cache_tmpl=None,
-                 full_test_split=None):
+                 full_test_split=None, has_motion_compensation=False):
         """Initialize the dataset
 
         Each sample will be organized as a dictionary as follow
@@ -128,6 +128,7 @@ class EpicKitchenDataset(BaseDataset):
         self.fps = fps
         self.use_audio_dict = use_audio_dict
         self.to_shuffle = to_shuffle
+        self.has_motion_compensation = has_motion_compensation
 
         if 'RGBDiff' in self.modality:
             self.new_length['RGBDiff'] += 1  # Diff needs one more image to calculate diff
@@ -497,18 +498,93 @@ class EpicKitchenDataset(BaseDataset):
         """Get sample based on the given modality
         """
         images = list()
+        if (modality == 'RGB') and (self.has_motion_compensation):
+            pivot_inlier = self.find_pivot_inlier(record, indices)
+
         for seg_ind in indices:
             p = int(seg_ind)
             for i in range(self.new_length[modality]):
                 seg_imgs = self._load_data(modality, record, p)
+
+                # Skip if the data are not loaded
                 if seg_imgs is None:
                     return None
+
+                # Motion compensation
+                if (modality == 'RGB') and (self.has_motion_compensation):
+                    warpped_img = self.compensate_motion(seg_imgs[0], record, p, pivot_inlier)
+                    seg_imgs = [warpped_img]
+
+                # Collect results
                 images.extend(seg_imgs)
                 if p < record.num_frames[modality]:
                     p += 1
 
+        # Transform data
         process_data = self.transform[modality](images)
         return process_data, record.label
+
+    def find_pivot_inlier(self, record, indices):
+        """Find the pivot inlier for warping. Use the available one closest to
+        the center frame
+        """
+        mid = len(indices) // 2
+        offset = 0
+        pivot_inlier = None
+
+        while mid + offset <= len(indices):
+            idx_untrimmed = record.start_frame + indices[mid + offset]
+            inliers_pth = os.path.join(self.depth_path, record.untrimmed_video_name,
+                                       self.depth_tmpl.format(idx_untrimmed-1))
+            if os.path.isfile(inliers_pth):
+                pivot_inlier = read_inliner(inliers_pth)
+                break
+
+            idx_untrimmed = record.start_frame + indices[mid - offset]
+            inliers_pth = os.path.join(self.depth_path, record.untrimmed_video_name,
+                                       self.depth_tmpl.format(idx_untrimmed-1))
+            if os.path.isfile(inliers_pth):
+                pivot_inlier = read_inliner(inliers_pth)
+                break
+
+            offset += 1
+        return pivot_inlier
+
+    def compensate_motion(self, img, record, idx, pivot_inlier,
+                          orig_height=1080, orig_width=1920):
+        """Compensate the motion by warping wrt the inliers of the pivot frame
+        """
+        if pivot_inlier is None:
+            return img
+
+        idx_untrimmed = record.start_frame + idx
+        inliers_pth = os.path.join(self.depth_path, record.untrimmed_video_name,
+                                   self.depth_tmpl.format(idx_untrimmed-1))
+
+        # Inliers not available -> no compensation
+        if not os.path.isfile(inliers_pth):
+            return img
+
+        # Read inlier
+        new_inlier = read_inliner(inliers_pth)
+        ptid_1, pt3d_1, pt2d_1 = pivot_inlier
+        ptid_2, pt3d_2, pt2d_2 = new_inlier
+
+        # Match 2D coordinates using point ID
+        matched_1, matched_2 = MiscUtils.find_points_correspondence(
+            ptid_1, ptid_2, pt2d_1, pt2d_2)
+
+        # Rescale the 2D coordinates
+        scale_h = orig_height / img.height
+        scale_w = orig_width / img.width
+        matched_1 = matched_1 / [scale_w, scale_h]
+        matched_2 = matched_2 / [scale_w, scale_h]
+
+        # Warp the frame wrt the pivot
+        warp_mat, _ = cv2.estimateAffine2D(matched_2, matched_1)
+        warpped = Image.fromarray(cv2.warpAffine(np.array(img), warp_mat, img.size))
+
+        return warpped
 
 
 class EpicVideoRecord(VideoRecord):

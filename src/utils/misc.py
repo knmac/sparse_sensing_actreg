@@ -446,3 +446,22 @@ class MiscUtils:
         if len(batch) == 0:
             batch = [(-1, -1)]
         return default_collate(batch)
+
+    @staticmethod
+    def find_points_correspondence(ptid_1, ptid_2, pts_1, pts_2):
+        """Find the point correspondence by looking at point id
+
+        Args:
+            ptid_1: (list) point id of the 1st frame
+            ptid_2: (list) point id of the 2nd frame
+            pts_1: (dict) point data of the 1st frame. The key has to match ptid_1
+            pts_2: (dict) point data of the 2nd frame. The key has to match ptid_2
+
+        Return:
+            matched_1: (ndarray) matched points from the 1st frame
+            matched_2: (ndarray) matched points from the 2nd frame
+        """
+        common_ids = np.intersect1d(ptid_1, ptid_2)
+        matched_1 = np.array([pts_1[k] for k in common_ids], dtype=np.float32)
+        matched_2 = np.array([pts_2[k] for k in common_ids], dtype=np.float32)
+        return matched_1, matched_2
