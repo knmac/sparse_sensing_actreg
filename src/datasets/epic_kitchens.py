@@ -532,7 +532,7 @@ class EpicKitchenDataset(BaseDataset):
         offset = 0
         pivot_inlier = None
 
-        while mid + offset <= len(indices):
+        while mid + offset < len(indices):
             idx_untrimmed = record.start_frame + indices[mid + offset]
             inliers_pth = os.path.join(self.depth_path, record.untrimmed_video_name,
                                        self.depth_tmpl.format(idx_untrimmed-1))
@@ -574,18 +574,20 @@ class EpicKitchenDataset(BaseDataset):
         matched_1, matched_2 = MiscUtils.find_points_correspondence(
             ptid_1, ptid_2, pt2d_1, pt2d_2)
 
+        # No match -> no compensation
+        if len(matched_1) == 0 or len(matched_2) == 0:
+            return img
+
         # Rescale the 2D coordinates
         scale_h = orig_height / img.height
         scale_w = orig_width / img.width
         matched_1 = matched_1 / [scale_w, scale_h]
         matched_2 = matched_2 / [scale_w, scale_h]
 
-        # No match -> no compensation
-        if len(matched_1) == 0 or len(matched_2) == 0:
-            return img
-
         # Warp the frame wrt the pivot
         warp_mat, _ = cv2.estimateAffine2D(matched_2, matched_1)
+        if warp_mat is None:
+            return img
         warpped = Image.fromarray(cv2.warpAffine(np.array(img), warp_mat, img.size))
 
         return warpped
