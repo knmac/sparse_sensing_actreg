@@ -6,6 +6,9 @@ import torch
 
 from .base_model import BaseModel
 from .actreg_gru2 import ActregGRU2
+import src.utils.logging as logging
+
+logger = logging.get_logger(__name__)
 
 
 class ActregGRU3(BaseModel):
@@ -54,6 +57,7 @@ class ActregGRU3(BaseModel):
                 if not os.path.isfile(pretrained_global):
                     pretrained_global = os.path.join(root, pretrained_global)
                 self.actreg_global.load_model(pretrained_global)
+                logger.info('Loaded pretrained on global head')
 
         if weight_local > 0:
             self.actreg_local = ActregGRU2(extra_dim=self.dim_local, **opts)
@@ -61,6 +65,7 @@ class ActregGRU3(BaseModel):
                 if not os.path.isfile(pretrained_local):
                     pretrained_local = os.path.join(root, pretrained_local)
                 self.actreg_local.load_model(pretrained_local)
+                logger.info('Loaded pretrained on local head')
 
         if weight_both > 0:
             self.actreg_both = ActregGRU2(extra_dim=dim_local+dim_global, **opts)
@@ -68,6 +73,7 @@ class ActregGRU3(BaseModel):
                 if not os.path.isfile(pretrained_both):
                     pretrained_both = os.path.join(root, pretrained_both)
                 self.actreg_both.load_model(pretrained_both)
+                logger.info('Loaded pretrained on both head')
 
     def forward(self, x, hidden=None):
         """
