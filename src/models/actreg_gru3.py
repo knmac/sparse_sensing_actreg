@@ -24,6 +24,7 @@ class ActregGRU3(BaseModel):
         self.num_class = num_class
         self.dropout = dropout
         self.use_spec_in_local = use_spec_in_local
+        self._input_dim = dim_local+dim_global
 
         self.dim_global = dim_global
         if use_spec_in_local:

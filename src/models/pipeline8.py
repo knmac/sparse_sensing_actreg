@@ -126,12 +126,20 @@ class Pipeline8(BaseModel):
 
         # Generate action recognition model
         name, params = ConfigLoader.load_model_cfg(actreg_model_cfg)
-        assert name in ['ActregGRU2', 'ActregFc'], \
+        assert name in ['ActregGRU3', 'ActregGRU2', 'ActregFc'], \
             'Unsupported model: {}'.format(name)
         if name == 'ActregGRU2':
             params.update({
                 'feature_dim': 0,  # Use `real_dim` instead
                 'extra_dim': real_dim,
+                'modality': self.modality,
+                'num_class': self.num_class,
+                'dropout': self.dropout,
+            })
+        elif name == 'ActregGRU3':
+            params.update({
+                'dim_global': len(self.modality)*self.low_feat_model.feature_dim,
+                'dim_local': self.spatial_sampler.top_k*self.high_feat_model.feature_dim,
                 'modality': self.modality,
                 'num_class': self.num_class,
                 'dropout': self.dropout,
