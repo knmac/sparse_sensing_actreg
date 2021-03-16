@@ -23,6 +23,9 @@ pretrained/finetuned/actreggru2_top3_cat__nofc1_1024hid_2lay/
 pretrained/finetuned/actreggru2_top1_cat__nofc1_1024hid_2lay_nolowres/
 pretrained/finetuned/actreggru2_top2_cat__nofc1_1024hid_2lay_nolowres/
 pretrained/finetuned/actreggru2_top3_cat__nofc1_1024hid_2lay_nolowres/
+pretrained/finetuned/actreggru3_top1_cat__nofc1_1024hid_2lay/
+pretrained/finetuned/actreggru3_top2_cat__nofc1_1024hid_2lay/
+pretrained/finetuned/actreggru3_top3_cat__nofc1_1024hid_2lay/
 cache/
 debug/
 compile_commands.json
