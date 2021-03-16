@@ -52,7 +52,9 @@ class ActregGRU3(BaseModel):
             'consensus_type': consensus_type,
         }
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        self._n_heads = 0
         if weight_global > 0:
+            self._n_heads += 1
             self.actreg_global = ActregGRU2(extra_dim=dim_global, **opts)
             if pretrained_global is not None:
                 if not os.path.isfile(pretrained_global):
@@ -61,6 +63,7 @@ class ActregGRU3(BaseModel):
                 logger.info('Loaded pretrained on global head')
 
         if weight_local > 0:
+            self._n_heads += 1
             self.actreg_local = ActregGRU2(extra_dim=self.dim_local, **opts)
             if pretrained_local is not None:
                 if not os.path.isfile(pretrained_local):
@@ -69,6 +72,7 @@ class ActregGRU3(BaseModel):
                 logger.info('Loaded pretrained on local head')
 
         if weight_both > 0:
+            self._n_heads += 1
             self.actreg_both = ActregGRU2(extra_dim=dim_local+dim_global, **opts)
             if pretrained_both is not None:
                 if not os.path.isfile(pretrained_both):

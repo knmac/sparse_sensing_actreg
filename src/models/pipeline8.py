@@ -328,13 +328,21 @@ class Pipeline8(BaseModel):
         # Process each sample separately because skipping is non-uniform across
         # batch domain
         # =====================================================================
+        has_multihead = type(self.actreg_model).__name__ in ['ActregGRU3']
         outputs, extra_outputs = [], []
         for i in range(batch_size):
             # Reset samplers at the start of the sequence
             self.temporal_sampler.reset()
             self.spatial_sampler.reset()
             all_skip, all_ssim, all_time, all_r = [], [], [], []
-            all_pred_verb, all_pred_noun = [], []
+            if not has_multihead:
+                all_pred_verb, all_pred_noun = [], []
+            else:
+                assert self.actreg_model._n_heads == 3
+                all_pred_verb_0, all_pred_noun_0 = [], []
+                all_pred_verb_1, all_pred_noun_1 = [], []
+                all_pred_verb_2, all_pred_noun_2 = [], []
+                head_w0, head_w1, head_w2 = [], [], []
 
             # Warm up using the first frame -----------------------------------
             st = time.time()
@@ -352,8 +360,21 @@ class Pipeline8(BaseModel):
             all_skip.append(result_dict['skipped'])
             all_ssim.append(result_dict['ssim'])
             all_r.append(result_dict['r_t'])
-            all_pred_verb.append(pred[0].unsqueeze(dim=1))
-            all_pred_noun.append(pred[1].unsqueeze(dim=1))
+            if not has_multihead:
+                all_pred_verb.append(pred[0].unsqueeze(dim=1))
+                all_pred_noun.append(pred[1].unsqueeze(dim=1))
+            else:
+                all_pred_verb_0.append(pred[0][0].unsqueeze(dim=1))
+                all_pred_noun_0.append(pred[0][1].unsqueeze(dim=1))
+                head_w0.append(pred[1])
+
+                all_pred_verb_1.append(pred[2][0].unsqueeze(dim=1))
+                all_pred_noun_1.append(pred[2][1].unsqueeze(dim=1))
+                head_w1.append(pred[3])
+
+                all_pred_verb_2.append(pred[4][0].unsqueeze(dim=1))
+                all_pred_noun_2.append(pred[4][1].unsqueeze(dim=1))
+                head_w2.append(pred[5])
 
             # Forward frame by frame ------------------------------------------
             for t in range(1, self.num_segments):
@@ -378,28 +399,73 @@ class Pipeline8(BaseModel):
                 all_skip.append(result_dict['skipped'])
                 all_ssim.append(result_dict['ssim'])
                 all_r.append(result_dict['r_t'])
-                all_pred_verb.append(pred[0].unsqueeze(dim=1))
-                all_pred_noun.append(pred[1].unsqueeze(dim=1))
+                if not has_multihead:
+                    all_pred_verb.append(pred[0].unsqueeze(dim=1))
+                    all_pred_noun.append(pred[1].unsqueeze(dim=1))
+                else:
+                    all_pred_verb_0.append(pred[0][0].unsqueeze(dim=1))
+                    all_pred_noun_0.append(pred[0][1].unsqueeze(dim=1))
+                    head_w0.append(pred[1])
+
+                    all_pred_verb_1.append(pred[2][0].unsqueeze(dim=1))
+                    all_pred_noun_1.append(pred[2][1].unsqueeze(dim=1))
+                    head_w1.append(pred[3])
+
+                    all_pred_verb_2.append(pred[4][0].unsqueeze(dim=1))
+                    all_pred_noun_2.append(pred[4][1].unsqueeze(dim=1))
+                    head_w2.append(pred[5])
 
             # Prepare outputs -------------------------------------------------
-            all_pred_verb = torch.cat(all_pred_verb, dim=1)
-            all_pred_noun = torch.cat(all_pred_noun, dim=1)
             all_ssim = torch.cat(all_ssim, dim=1)
             all_r = torch.cat(all_r, dim=0).unsqueeze(0)
-            if output_mode == 'avg_all':
-                output = (all_pred_verb.mean(dim=1), all_pred_noun.mean(dim=1))
-            elif output_mode == 'avg_non_skip':
-                foo, bar, cnt = 0, 0, 0
+            if not has_multihead:
+                all_pred_verb = torch.cat(all_pred_verb, dim=1)
+                all_pred_noun = torch.cat(all_pred_noun, dim=1)
+                if output_mode == 'avg_all':
+                    output = (all_pred_verb.mean(dim=1), all_pred_noun.mean(dim=1))
+                elif output_mode == 'avg_non_skip':
+                    foo, bar, cnt = 0, 0, 0
+                    for t in range(self.num_segments):
+                        if not all_skip[t]:
+                            foo += all_pred_verb[:, t, :]
+                            bar += all_pred_noun[:, t, :]
+                            cnt += 1
+                    output = (foo/cnt, bar/cnt)
+                elif output_mode == 'raw':
+                    output = (all_pred_verb, all_pred_noun)
+                else:
+                    raise NotImplementedError
+            else:
+                assert output_mode == 'avg_non_skip', NotADirectoryError
+                all_pred_verb_0 = torch.cat(all_pred_verb_0, dim=1)
+                all_pred_noun_0 = torch.cat(all_pred_noun_0, dim=1)
+                head_w0 = torch.cat(head_w0, dim=1)
+
+                all_pred_verb_1 = torch.cat(all_pred_verb_1, dim=1)
+                all_pred_noun_1 = torch.cat(all_pred_noun_1, dim=1)
+                head_w1 = torch.cat(head_w1, dim=1)
+
+                all_pred_verb_2 = torch.cat(all_pred_verb_2, dim=1)
+                all_pred_noun_2 = torch.cat(all_pred_noun_2, dim=1)
+                head_w2 = torch.cat(head_w2, dim=1)
+                cnt = 0
+                foo_0, bar_0, foo_1, bar_1, foo_2, bar_2 = 0, 0, 0, 0, 0, 0
+
                 for t in range(self.num_segments):
                     if not all_skip[t]:
-                        foo += all_pred_verb[:, t, :]
-                        bar += all_pred_noun[:, t, :]
+                        foo_0 += all_pred_verb_0[:, t, :]
+                        bar_0 += all_pred_noun_0[:, t, :]
+
+                        foo_1 += all_pred_verb_1[:, t, :]
+                        bar_1 += all_pred_noun_1[:, t, :]
+
+                        foo_2 += all_pred_verb_2[:, t, :]
+                        bar_2 += all_pred_noun_2[:, t, :]
+
                         cnt += 1
-                output = (foo/cnt, bar/cnt)
-            elif output_mode == 'raw':
-                output = (all_pred_verb, all_pred_noun)
-            else:
-                raise NotImplementedError
+                output = ((foo_0/cnt, bar_0/cnt), head_w0,
+                          (foo_1/cnt, bar_1/cnt), head_w1,
+                          (foo_2/cnt, bar_2/cnt), head_w2,)
 
             extra_output = {
                 'skip': all_skip,
@@ -416,9 +482,25 @@ class Pipeline8(BaseModel):
         # Manipulate batch and output fields
         # =====================================================================
         # Get outputs
-        out_verb = torch.cat([x[0] for x in outputs], dim=0)
-        out_noun = torch.cat([x[1] for x in outputs], dim=0)
-        outputs = (out_verb, out_noun)
+        if not has_multihead:
+            out_verb = torch.cat([x[0] for x in outputs], dim=0)
+            out_noun = torch.cat([x[1] for x in outputs], dim=0)
+            outputs = (out_verb, out_noun)
+        else:
+            out_verb_0 = torch.cat([x[0][0] for x in outputs], dim=0)
+            out_noun_0 = torch.cat([x[0][1] for x in outputs], dim=0)
+            head_w0 = torch.cat([x[1] for x in outputs], dim=0)
+
+            out_verb_1 = torch.cat([x[2][0] for x in outputs], dim=0)
+            out_noun_1 = torch.cat([x[2][1] for x in outputs], dim=0)
+            head_w1 = torch.cat([x[3] for x in outputs], dim=0)
+
+            out_verb_2 = torch.cat([x[4][0] for x in outputs], dim=0)
+            out_noun_2 = torch.cat([x[4][1] for x in outputs], dim=0)
+            head_w2 = torch.cat([x[5] for x in outputs], dim=0)
+            outputs = ((out_verb_0, out_noun_0), head_w0,
+                       (out_verb_1, out_noun_1), head_w1,
+                       (out_verb_2, out_noun_2), head_w2)
 
         # Combine extra_outputs
         tmp = {}
