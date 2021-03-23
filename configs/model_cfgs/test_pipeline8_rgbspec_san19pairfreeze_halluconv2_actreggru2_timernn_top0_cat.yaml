@@ -8,7 +8,7 @@ model_params:
     temporal_sampler_cfg: 'configs/model_cfgs/temporal_sampler_rnn.yaml'
     hallu_pretrained_weights:  ~
     actreg_pretrained_weights: ~
-    full_weights: '/home/knmac/Dropbox/SparseSensing/DGX_training_logs/run_pipeline8_rgbspec_san19pairfreeze_halluconv2_actreggru2_timernn_top0_cat.sh/best.model'
+    full_weights: 'pretrained/complete/finetune_pipeline8_top0_eff0.01_nofc1_1024hid_2lay/best.model'
     freeze_hallu: True
     freeze_actreg: False
     using_cupy: False
