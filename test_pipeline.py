@@ -16,7 +16,8 @@ logger = logging.get_logger(__name__)
 def test(model, device, test_loader, args, has_groundtruth):
     # Switch model to eval mode
     model.eval()
-    model.to(device)
+    # model.to(device)
+    model = torch.nn.DataParallel(model, device_ids=args.gpus).to(device)
 
     # Test
     with torch.no_grad():
@@ -37,7 +38,7 @@ def test(model, device, test_loader, args, has_groundtruth):
 def test_with_gt(model, device, test_loader):
     """Test on the validation set with groundtruth labels
     """
-    model_name = type(model).__name__
+    model_name = type(model.module).__name__
     assert model_name in ['Pipeline6', 'Pipeline8']
     assert test_loader.dataset.name == 'epic_kitchens', \
         'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
@@ -60,7 +61,7 @@ def test_with_gt(model, device, test_loader):
         if model_name == 'Pipeline6':
             output, extra_output = model(sample)
         elif model_name == 'Pipeline8':
-            output, _, _, extra_output = model(sample, get_extra=True)
+            output, _, gflops = model(sample)
 
         all_skip.append(extra_output['skip'])
         all_time.append(extra_output['time'])
@@ -129,7 +130,7 @@ def test_with_gt(model, device, test_loader):
 def test_without_gt(model, device, test_loader):
     """Test on the test set without groundtruth labels
     """
-    model_name = type(model).__name__
+    model_name = type(model.module).__name__
     assert model_name in ['Pipeline6', 'Pipeline8']
     assert test_loader.dataset.name == 'epic_kitchens', \
         'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
@@ -143,45 +144,66 @@ def test_without_gt(model, device, test_loader):
     }
 
     # Test
-    all_skip, all_time, all_ssim = [], [], []
+    all_skip, all_time, all_ssim, all_gflops = [], [], [], []
     for i, (sample, _) in tqdm(enumerate(test_loader), total=len(test_loader)):
         # Inference
         sample = {k: v.to(device) for k, v in sample.items()}
         if model_name == 'Pipeline6':
             output, extra_output = model(sample)
         elif model_name == 'Pipeline8':
-            output, _, _, extra_output = model(sample, get_extra=True)
-        assert output[0].shape[0] == 1, 'Only support batch_size=1'
+            output, _, gflops = model(sample)
 
-        verb_output = output[0][0].cpu().numpy()
-        noun_output = output[1][0].cpu().numpy()
+        verb_output = output[0].cpu().numpy()
+        noun_output = output[1].cpu().numpy()
 
         # Collect prediction
-        uid = str(uid_lst[i])
-        results["results"][uid] = {
-            'verb': {str(k): float(verb_output[k]) for k in range(len(verb_output))},
-            'noun': {str(k): float(noun_output[k]) for k in range(len(noun_output))},
-        }
+        batch_size = verb_output.shape[0]
+        for b in range(batch_size):
+            uid = str(uid_lst[i+b])
+            results["results"][uid] = {
+                'verb': {str(k): float(verb_output[b][k]) for k in range(len(verb_output[b]))},
+                'noun': {str(k): float(noun_output[b][k]) for k in range(len(noun_output[b]))},
+            }
 
         # Collect extra results
-        all_skip.append(extra_output['skip'])
-        all_time.append(extra_output['time'])
-        if isinstance(extra_output['ssim'], np.ndarray):
-            all_ssim.append(extra_output['ssim'])
-        else:
-            all_ssim.append(extra_output['ssim'].cpu().numpy())
+        if model_name == 'Pipeline6':
+            all_skip.append(extra_output['skip'])
+            all_time.append(extra_output['time'])
+            if isinstance(extra_output['ssim'], np.ndarray):
+                all_ssim.append(extra_output['ssim'])
+            else:
+                all_ssim.append(extra_output['ssim'].cpu().numpy())
+        elif model_name == 'Pipeline8':
+            all_gflops.append(gflops)
 
     # Print out message
-    msg = '  Total frames {}, Skipped frames {}'.format(len(all_skip), sum(all_skip))
-    logger.info(msg)
+    if model_name == 'Pipeline6':
+        msg = '  Total frames {}, Skipped frames {}'.format(len(all_skip), sum(all_skip))
+        logger.info(msg)
 
-    all_skip = np.concatenate(all_skip, axis=0)
-    all_ssim = np.concatenate(all_ssim, axis=0)
-    all_time = np.concatenate(all_time, axis=0)
-    extra_results = {
-        'all_skip': all_skip,
-        'all_ssim': all_ssim,
-        'all_time': all_time,
-    }
+        all_skip = np.concatenate(all_skip, axis=0)
+        all_ssim = np.concatenate(all_ssim, axis=0)
+        all_time = np.concatenate(all_time, axis=0)
+        extra_results = {
+            'all_skip': all_skip,
+            'all_ssim': all_ssim,
+            'all_time': all_time,
+        }
+    elif model_name == 'Pipeline8':
+        all_gflops = torch.cat(all_gflops, dim=0)
+
+        extra_results = {
+            'total_gflops': all_gflops.sum().item(),
+            'avg_gflops': all_gflops.mean().item(),
+            'n_skipped': (all_gflops == 0).sum().item(),
+            'n_prescanned': (all_gflops == model.module.gflops_prescan).sum().item(),
+            'n_nonskipped': (all_gflops == model.module.gflops_full).sum().item(),
+        }
+
+        msg = '\n'
+        msg += '  Skipped frames     {}\n'.format(extra_results['n_skipped'])
+        msg += '  Prescanned frames  {}\n'.format(extra_results['n_prescanned'])
+        msg += '  Non-skipped frames {}\n'.format(extra_results['n_nonskipped'])
+        logger.info(msg)
 
     return results, extra_results
