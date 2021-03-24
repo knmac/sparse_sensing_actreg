@@ -24,7 +24,7 @@ class Pipeline5(BaseModel):
                  new_length, attention_layer, attention_dim, dropout,
                  high_feat_model_cfg, low_feat_model_cfg, spatial_sampler_cfg,
                  actreg_model_cfg, feat_process_type, using_cupy, reduce_dim=None,
-                 ignore_lowres=False):
+                 ignore_lowres=False, full_weights=None):
         super(Pipeline5, self).__init__(device)
 
         # Turn off cudnn benchmark because of different input size
@@ -147,6 +147,10 @@ class Pipeline5(BaseModel):
                 'num_segments': self.num_segments,
             })
         self.actreg_model = model_factory.generate(name, device=device, **params)
+
+        # Overwrite with the full_weights if given
+        if full_weights is not None:
+            self.load_model(full_weights)
 
     def _downsample(self, x):
         """Downsample/rescale high resolution image to make low resolution version

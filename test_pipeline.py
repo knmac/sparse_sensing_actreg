@@ -131,7 +131,7 @@ def test_without_gt(model, device, test_loader):
     """Test on the test set without groundtruth labels
     """
     model_name = type(model.module).__name__
-    assert model_name in ['Pipeline6', 'Pipeline8']
+    assert model_name in ['Pipeline5', 'Pipeline6', 'Pipeline8']
     assert test_loader.dataset.name == 'epic_kitchens', \
         'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
 
@@ -144,17 +144,34 @@ def test_without_gt(model, device, test_loader):
     }
 
     # Test
+    multihead = type(model.module.actreg_model).__name__ in ['ActregGRU3']
     all_skip, all_time, all_ssim, all_gflops = [], [], [], []
     for i, (sample, _) in tqdm(enumerate(test_loader), total=len(test_loader)):
         # Inference
         sample = {k: v.to(device) for k, v in sample.items()}
-        if model_name == 'Pipeline6':
+        if model_name == 'Pipeline5':
+            output = model(sample)
+        elif model_name == 'Pipeline6':
             output, extra_output = model(sample)
         elif model_name == 'Pipeline8':
             output, _, gflops = model(sample)
 
-        verb_output = output[0].cpu().numpy()
-        noun_output = output[1].cpu().numpy()
+        # Parse outputs
+        if not multihead:
+            verb_output = output[0]
+            noun_output = output[1]
+        else:
+            n_heads = len(output) // 2
+            verb_output, noun_output = None, None
+            for h in range(n_heads):
+                _out, _weight = output[2*h], output[2*h+1]
+                _weight = _weight[0][0]
+                verb_output = _out[0] if verb_output is None else verb_output+_out[0]
+                noun_output = _out[1] if noun_output is None else noun_output+_out[1]
+            verb_output /= n_heads
+            noun_output /= n_heads
+        verb_output = verb_output.cpu().numpy()
+        noun_output = noun_output.cpu().numpy()
 
         # Collect prediction
         batch_size = verb_output.shape[0]
@@ -177,6 +194,7 @@ def test_without_gt(model, device, test_loader):
             all_gflops.append(gflops)
 
     # Print out message
+    extra_results = None
     if model_name == 'Pipeline6':
         msg = '  Total frames {}, Skipped frames {}'.format(len(all_skip), sum(all_skip))
         logger.info(msg)
