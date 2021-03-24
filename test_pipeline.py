@@ -146,6 +146,7 @@ def test_without_gt(model, device, test_loader):
     # Test
     multihead = type(model.module.actreg_model).__name__ in ['ActregGRU3']
     all_skip, all_time, all_ssim, all_gflops = [], [], [], []
+    cnt = 0
     for i, (sample, _) in tqdm(enumerate(test_loader), total=len(test_loader)):
         # Inference
         sample = {k: v.to(device) for k, v in sample.items()}
@@ -176,11 +177,12 @@ def test_without_gt(model, device, test_loader):
         # Collect prediction
         batch_size = verb_output.shape[0]
         for b in range(batch_size):
-            uid = str(uid_lst[i+b])
+            uid = str(uid_lst[cnt])
             results["results"][uid] = {
                 'verb': {str(k): float(verb_output[b][k]) for k in range(len(verb_output[b]))},
                 'noun': {str(k): float(noun_output[b][k]) for k in range(len(noun_output[b]))},
             }
+            cnt += 1
 
         # Collect extra results
         if model_name == 'Pipeline6':
