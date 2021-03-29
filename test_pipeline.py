@@ -50,7 +50,7 @@ def test_with_gt(model, device, test_loader):
     verb_top5 = AverageMeter()
     noun_top1 = AverageMeter()
     noun_top5 = AverageMeter()
-    all_skip, all_time, all_ssim = [], [], []
+    all_skip, all_time, all_ssim, all_gflops = [], [], [], []
     all_output = []
 
     # Test
@@ -63,18 +63,22 @@ def test_with_gt(model, device, test_loader):
         elif model_name == 'Pipeline8':
             output, _, gflops = model(sample)
 
-        all_skip.append(extra_output['skip'])
-        all_time.append(extra_output['time'])
-        if isinstance(extra_output['ssim'], np.ndarray):
-            all_ssim.append(extra_output['ssim'])
-        else:
-            all_ssim.append(extra_output['ssim'].cpu().numpy())
+        # Collect extra results
+        if model_name == 'Pipeline6':
+            all_skip.append(extra_output['skip'])
+            all_time.append(extra_output['time'])
+            if isinstance(extra_output['ssim'], np.ndarray):
+                all_ssim.append(extra_output['ssim'])
+            else:
+                all_ssim.append(extra_output['ssim'].cpu().numpy())
+        elif model_name == 'Pipeline8':
+            all_gflops.append(gflops)
         all_output.append(output)
 
         # Compute metrics
-        batch_size = sample[model.modality[0]].size(0)
         verb_output = output[0]
         noun_output = output[1]
+        batch_size = verb_output.shape[0]
 
         verb_prec1, verb_prec5 = accuracy(verb_output, target['verb'], topk=(1, 5))
         verb_top1.update(verb_prec1, batch_size)
@@ -99,14 +103,15 @@ def test_with_gt(model, device, test_loader):
             logger.info(msg)
 
     # Print out message
-    all_skip = np.concatenate(all_skip, axis=0)
-    all_ssim = np.concatenate(all_ssim, axis=0)
-    all_time = np.concatenate(all_time, axis=0)
     msg = 'Overall results:\n'
     msg += '  Prec@1 {:.3f}, Prec@5 {:.3f}\n'.format(top1.avg, top5.avg)
     msg += '  Verb Prec@1 {:.3f}, Verb Prec@5 {:.3f}\n'.format(verb_top1.avg, verb_top5.avg)
     msg += '  Noun Prec@1 {:.3f}, Noun Prec@5 {:.3f}\n'.format(noun_top1.avg, noun_top5.avg)
-    msg += '  Total frames {}, Skipped frames {}'.format(all_skip.size, all_skip.sum())
+    if model_name == 'Pipeline6':
+        all_skip = np.concatenate(all_skip, axis=0)
+        all_ssim = np.concatenate(all_ssim, axis=0)
+        all_time = np.concatenate(all_time, axis=0)
+        msg += '  Total frames {}, Skipped frames {}'.format(all_skip.size, all_skip.sum())
     logger.info(msg)
 
     # Collect metrics
@@ -120,10 +125,20 @@ def test_with_gt(model, device, test_loader):
     results = {
         'test_metrics': test_metrics,
         'all_output': all_output,
-        'all_skip': all_skip,
-        'all_ssim': all_ssim,
-        'all_time': all_time,
     }
+
+    if model_name == 'Pipeline6':
+        results.update({
+            'all_skip': all_skip,
+            'all_ssim': all_ssim,
+            'all_time': all_time,
+        })
+    elif model_name == 'Pipeline8':
+        results.update({
+            'all_gflops': torch.cat(all_gflops, dim=0).cpu().detach().numpy(),
+            'gflops_full': model.module.gflops_full,
+            'gflops_prescan': model.module.gflops_prescan,
+        })
     return results
 
 
@@ -218,6 +233,7 @@ def test_without_gt(model, device, test_loader):
             'n_skipped': (all_gflops == 0).sum().item(),
             'n_prescanned': (all_gflops == model.module.gflops_prescan).sum().item(),
             'n_nonskipped': (all_gflops == model.module.gflops_full).sum().item(),
+            'all_gflops': all_gflops,
         }
 
         msg = '\n'
