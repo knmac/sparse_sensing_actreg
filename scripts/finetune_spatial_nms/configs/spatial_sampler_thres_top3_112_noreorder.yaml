@@ -1,0 +1,6 @@
+model_name: 'SpatialSamplerThres'
+model_params:
+    top_k: 3
+    min_b_size: 112
+    max_b_size: 112
+    reorder_vid: False

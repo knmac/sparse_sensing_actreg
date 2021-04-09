@@ -212,8 +212,7 @@ class Pipeline5(BaseModel):
 
         # Spatial sampler -----------------------------------------------------
         # Compute bboxes -> (B, T, top_k, 4)
-        bboxes = self.spatial_sampler.sample_multiple_frames(
-            attn, _rgb_high.shape[-1], reorder=True, avg_across_time=True)
+        bboxes = self.spatial_sampler.sample_multiple_frames(attn, _rgb_high.shape[-1])
 
         # (B, T*C, H, W) -> (B, T, C, H, W)
         n_channels = _rgb_high.shape[1] // self.num_segments
