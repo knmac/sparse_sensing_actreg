@@ -26,7 +26,7 @@ class EpicWrapper(EpicKitchenDataset):
     def get(self, modality, record, indices):
         """Get sample based on the given modality
         """
-        images = list()
+        # images = list()
 
         for seg_ind in indices:
             p = int(seg_ind)
@@ -37,9 +37,9 @@ class EpicWrapper(EpicKitchenDataset):
                 continue
 
             # Collect results
-            images.extend(seg_imgs)
-            if p < record.num_frames[modality]:
-                p += 1
+            # images.extend(seg_imgs)
+            # if p < record.num_frames[modality]:
+            #     p += 1
 
         # Transform data
         # process_data = self.transform[modality](images)
