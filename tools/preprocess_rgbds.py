@@ -21,30 +21,8 @@ class EpicWrapper(EpicKitchenDataset):
     def __getitem__(self, index):
         record = self.video_list[index]
         indices = np.arange(record.num_frames['RGBDS'])
-        self.get('RGBDS', record, indices)
-
-    def get(self, modality, record, indices):
-        """Get sample based on the given modality
-        """
-        # images = list()
-
-        for seg_ind in indices:
-            p = int(seg_ind)
-            seg_imgs = self._load_data(modality, record, p)
-
-            # Skip if the data are not loaded
-            if seg_imgs is None:
-                continue
-
-            # Collect results
-            # images.extend(seg_imgs)
-            # if p < record.num_frames[modality]:
-            #     p += 1
-
-        # Transform data
-        # process_data = self.transform[modality](images)
-        # return process_data, record.label
-        # return images, record.label
+        for idx in indices:
+            self._load_data('RGBDS', record, idx)
 
 
 def process(dataset_cfg, n_threads, mode):
