@@ -73,7 +73,7 @@ def process(dataset_cfg, n_threads, mode):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--n_threads', type=int, default=8)
+    parser.add_argument('-n', '--n_threads', type=int, default=48)
     parser.add_argument('-d', '--dataset_cfg', type=str,
                         default='configs/dataset_cfgs/epickitchens_noshuffle_rgbds.yaml')
                         # default='configs/dataset_cfgs/epickitchens_p01_08.yaml')
