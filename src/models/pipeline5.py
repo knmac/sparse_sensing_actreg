@@ -17,6 +17,11 @@ from torch.nn import functional as F
 
 from .base_model import BaseModel
 from src.utils.load_cfg import ConfigLoader
+from tools.complexity import get_model_complexity_info
+from src.utils.misc import MiscUtils
+import src.utils.logging as logging
+
+logger = logging.get_logger(__name__)
 
 
 class Pipeline5(BaseModel):
@@ -147,10 +152,71 @@ class Pipeline5(BaseModel):
                 'num_segments': self.num_segments,
             })
         self.actreg_model = model_factory.generate(name, device=device, **params)
+        self.actreg_model.to(self.device)
 
         # Overwrite with the full_weights if given
         if full_weights is not None:
             self.load_model(full_weights)
+
+        self.compute_model_complexity()
+
+    def compute_model_complexity(self):
+        opts = {'as_strings': False, 'print_per_layer_stat': False}
+
+        # RGB - low res -------------------------------------------------------
+        rgb_low_indim = self.low_feat_model.input_size[self._pivot_mod_name]
+        if self._pivot_mod_name == 'RGB':
+            rgb_low_flops, rgb_low_params = get_model_complexity_info(
+                self.low_feat_model.rgb, (3, rgb_low_indim, rgb_low_indim), **opts)
+            flops_dict, param_dict = MiscUtils.collect_flops(self.low_feat_model.rgb)
+        elif self._pivot_mod_name == 'RGBDS':
+            rgb_low_flops, rgb_low_params = get_model_complexity_info(
+                self.low_feat_model.rgbds, (5, rgb_low_indim, rgb_low_indim), **opts)
+            flops_dict, param_dict = MiscUtils.collect_flops(self.low_feat_model.rgbds)
+
+        rgb_low_flops *= 1e-9
+        logger.info('%s low (%03d):      GFLOPS=%.04f' %
+                    (self._pivot_mod_name, rgb_low_indim, rgb_low_flops))
+
+        # RGB - cropped high res ----------------------------------------------
+        assert self.spatial_sampler.min_b_size == self.spatial_sampler.max_b_size
+        sampling_size = self.spatial_sampler.max_b_size
+        if self._pivot_mod_name == 'RGB':
+            rgb_high_flops, rgb_high_params = get_model_complexity_info(
+                self.high_feat_model.rgb, (3, sampling_size, sampling_size), **opts)
+        elif self._pivot_mod_name == 'RGBDS':
+            rgb_high_flops, rgb_high_params = get_model_complexity_info(
+                self.high_feat_model.rgbds, (5, sampling_size, sampling_size), **opts)
+        rgb_high_flops = rgb_high_flops * self.spatial_sampler.top_k * 1e-9
+        logger.info('%s high (%03d, %dx): GFLOPS=%.04f' %
+                    (self._pivot_mod_name, sampling_size,
+                     self.spatial_sampler.top_k, rgb_high_flops))
+
+        # Spec ----------------------------------------------------------------
+        self.low_feat_model.input_size['Spec'] = 256
+        spec_indim = self.low_feat_model.input_size['Spec']
+        spec_flops, spec_params = get_model_complexity_info(
+            self.low_feat_model.spec, (1, spec_indim, spec_indim), **opts)
+        spec_flops *= 1e-9
+        logger.info('Spec (%03d):         GFLOPS=%.04f' % (spec_indim, spec_flops))
+
+        # Actreg --------------------------------------------------------------
+        actreg_flops, actreg_params = get_model_complexity_info(
+            self.actreg_model, (1, self.actreg_model._input_dim), **opts)
+        actreg_flops *= 1e-9
+        logger.info('Actreg:             GFLOPS=%.4f' % actreg_flops)
+
+        self.gflops_dict = {
+            'rgb_low': rgb_low_flops,
+            'rgb_high': rgb_high_flops,
+            'spec': spec_flops,
+            'actreg': actreg_flops,
+        }
+
+        # GFLOPS of the full pipeline
+        logger.info('='*33)
+        self.gflops_full = sum([v for k, v in self.gflops_dict.items()])
+        logger.info('Full pipeline:      GFLOPS=%.4f' % self.gflops_full)
 
     def _downsample(self, x):
         """Downsample/rescale high resolution image to make low resolution version
