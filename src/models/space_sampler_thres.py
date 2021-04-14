@@ -189,7 +189,7 @@ class SpatialSamplerThres():
         # Reorder multi frames using dijkstra ---------------------------------
         if reorder_vid:
             for i in range(len(all_bboxes)):
-                all_bboxes[i] = self._sort_bboxes_dijkstra(all_bboxes[i])
+                all_bboxes[i], _ = self._sort_bboxes_dijkstra(all_bboxes[i])
         return all_bboxes
 
     # def _get_bbox_from_attn(self, attn, simple_return=True):
@@ -376,7 +376,7 @@ class SpatialSamplerThres():
         # Swap the bboxes based on the new order
         orders = np.stack(orders).T
         new_bboxes = np.array([bboxes[t][orders[t]] for t in range(T)])
-        return new_bboxes
+        return new_bboxes, orders
 
 
 class BBGraph:

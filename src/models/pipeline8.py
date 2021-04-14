@@ -603,7 +603,7 @@ class Pipeline8(BaseModel):
         # Spatial sampler -----------------------------------------------------
         # Compute bboxes -> (B, top_k, 4)
         bboxes = self.spatial_sampler.sample_frame(attn, rgb_high.shape[-1],
-                                                   reorder=True)
+                                                   reorder_pair=True)
 
         # Extract regions and feed in high_feat_model
         high_feat = []
@@ -748,7 +748,7 @@ class Pipeline8(BaseModel):
         # Spatial sampler -----------------------------------------------------
         # Compute bboxes -> (B, top_k, 4)
         bboxes = self.spatial_sampler.sample_frame(attn, rgb_high.shape[-1],
-                                                   reorder=True)
+                                                   reorder_pair=True)
 
         # Extract regions and feed in high_feat_model
         high_feat = []
