@@ -469,7 +469,7 @@ class MiscUtils:
         return matched_1, matched_2
 
     @staticmethod
-    def plot_grad_flow(named_parameters):
+    def plot_grad_flow(named_parameters, show=True, save_fname=None):
         ave_grads = []
         max_grads = []
         layers = []
@@ -493,4 +493,9 @@ class MiscUtils:
                     Line2D([0], [0], color="b", lw=4),
                     Line2D([0], [0], color="k", lw=4)],
                    ['max-gradient', 'mean-gradient', 'zero-gradient'])
-        plt.show()
+
+        if show:
+            plt.show()
+
+        if save_fname is not None:
+            plt.savefig(save_fname)
