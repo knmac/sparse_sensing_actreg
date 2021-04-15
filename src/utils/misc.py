@@ -485,6 +485,7 @@ class MiscUtils:
         plt.xticks(range(0, len(ave_grads), 1), layers, rotation="vertical")
         plt.xlim(left=-1, right=len(ave_grads))
         # plt.ylim(bottom=-0.001, top=0.02)  # zoom in on the lower gradient regions
+        plt.yscale('log')
         plt.xlabel("Layers")
         plt.ylabel("average gradient")
         plt.title("Gradient flow")
@@ -499,3 +500,4 @@ class MiscUtils:
 
         if save_fname is not None:
             plt.savefig(save_fname)
+        plt.close()
