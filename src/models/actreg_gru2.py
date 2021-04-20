@@ -1,5 +1,7 @@
 """Action recognition using GRU
 """
+import os
+
 import torch
 from torch import nn
 from torch.nn.init import normal_, constant_
@@ -11,7 +13,7 @@ class ActregGRU2(BaseModel):
 
     def __init__(self, device, modality, num_class, dropout, feature_dim,
                  rnn_input_size, rnn_hidden_size, rnn_num_layers,
-                 consensus_type, extra_dim=0):
+                 consensus_type, extra_dim=0, pretrained=None):
         super(ActregGRU2, self).__init__(device)
 
         self.modality = modality
@@ -83,6 +85,13 @@ class ActregGRU2(BaseModel):
             self.fc_action = nn.Linear(rnn_hidden_size, num_class)
             normal_(self.fc_action.weight, 0, _std)
             constant_(self.fc_action.bias, 0)
+
+        # Load pretrained
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        if pretrained is not None:
+            if not os.path.isfile(pretrained):
+                pretrained = os.path.join(root, pretrained)
+            self.load_model(pretrained)
 
     def forward(self, x, hidden=None):
         """
