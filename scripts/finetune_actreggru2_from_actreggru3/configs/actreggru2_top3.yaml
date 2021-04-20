@@ -1,0 +1,7 @@
+model_name: 'ActregGRU2'
+model_params:
+    rnn_input_size: ~
+    rnn_hidden_size: 1024
+    rnn_num_layers: 2
+    consensus_type: 'avg'
+    pretrained: 'pretrained/finetuned/actreggru2_from_actreggru3_top3_cat__nofc1_1024hid_2lay/actreg.model'
