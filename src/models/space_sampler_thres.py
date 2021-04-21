@@ -83,6 +83,14 @@ class SpatialSamplerThres():
                     props[sid], attn_size=attn_size, img_size=img_size)
                 bboxes.append([top, left, bottom, right])
 
+            # Use center box if nothing is found
+            if len(bboxes) == 0:
+                bboxes.append([(img_size - self.max_b_size)//2,
+                               (img_size - self.max_b_size)//2 + self.max_b_size,
+                               (img_size - self.max_b_size)//2,
+                               (img_size - self.max_b_size)//2 + self.max_b_size,
+                               ])
+
             # Append the last item if not enough bboxes
             if len(bboxes) != self.top_k:
                 bboxes += [bboxes[-1]] * (self.top_k - len(bboxes))
