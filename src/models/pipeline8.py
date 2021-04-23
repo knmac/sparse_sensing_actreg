@@ -30,7 +30,7 @@ class Pipeline8(BaseModel):
                  hallu_pretrained_weights, actreg_pretrained_weights,
                  feat_process_type, freeze_hallu, freeze_actreg, temperature,
                  temperature_exp_decay_factor, eff_loss_weights, using_cupy,
-                 full_weights=None):
+                 temporal_sampler_lr=None, full_weights=None):
         super(Pipeline8, self).__init__(device)
 
         # Turn off cudnn benchmark because of different input size
@@ -92,6 +92,7 @@ class Pipeline8(BaseModel):
         })
         self.temporal_sampler = model_factory.generate(name, device=device, **params)
         self.temporal_sampler.to(self.device)
+        self.temporal_sampler_lr = temporal_sampler_lr  # Overwrite default lr
 
         # Generate spatial sampler
         name, params = ConfigLoader.load_model_cfg(spatial_sampler_cfg)
@@ -851,5 +852,20 @@ class Pipeline8(BaseModel):
     def get_param_groups(self):
         """Wrapper to get param_groups for optimizer
         """
-        param_groups = filter(lambda p: p.requires_grad, self.parameters())
+        if self.temporal_sampler_lr is None:
+            param_groups = filter(lambda p: p.requires_grad, self.parameters())
+        else:
+            # Overwrite the lr for temporal_sampler if necessary
+            param_groups = []
+            param_groups.append({'params': filter(lambda p: p.requires_grad,
+                                                  self.temporal_sampler.parameters()),
+                                 'lr': self.temporal_sampler_lr})
+
+            for module in [self.low_feat_model, self.high_feat_model, self.spatial_sampler,
+                           self.hallu_model, self.actreg_model]:
+                try:
+                    param_groups.append({'params': filter(lambda p: p.requires_grad,
+                                                          module.parameters())})
+                except AttributeError:
+                    continue
         return param_groups
