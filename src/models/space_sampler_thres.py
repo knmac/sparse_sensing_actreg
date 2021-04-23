@@ -86,8 +86,8 @@ class SpatialSamplerThres():
             # Use center box if nothing is found
             if len(bboxes) == 0:
                 bboxes.append([(img_size - self.max_b_size)//2,
-                               (img_size - self.max_b_size)//2 + self.max_b_size,
                                (img_size - self.max_b_size)//2,
+                               (img_size - self.max_b_size)//2 + self.max_b_size,
                                (img_size - self.max_b_size)//2 + self.max_b_size,
                                ])
 
