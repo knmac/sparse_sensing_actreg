@@ -104,7 +104,7 @@ def train_val(model, device, criterion, train_loader, val_loader, train_params, 
             model.module.decay_teacher_forcing_ratio()
         if hasattr(model.module, 'decay_temperature'):
             sum_writer.add_scalar('data/temperature', model.module.temperature, run_iter)
-            model.module.decay_temperature()
+            model.module.decay_temperature(epoch)
 
     # =========================================================================
     # Done training

@@ -83,6 +83,7 @@ class Pipeline8(BaseModel):
         self.high_feat_model = model_factory.generate(name, device=device, **params)
 
         # Generate temporal sampler
+        self.init_temperature = temperature
         self.temperature = temperature
         self.temperature_exp_decay_factor = temperature_exp_decay_factor
         name, params = ConfigLoader.load_model_cfg(temporal_sampler_cfg)
@@ -261,9 +262,9 @@ class Pipeline8(BaseModel):
                                    ['rgb_low_first', 'hallu', 'time_sampler']])
         logger.info('Prescanning:        GFLOPS=%.4f' % self.gflops_prescan)
 
-    def decay_temperature(self):
+    def decay_temperature(self, epoch):
         """Decay the temperature for gumbel softmax loss"""
-        self.temperature *= np.exp(self.temperature_exp_decay_factor)
+        self.temperature = self.init_temperature * np.exp(self.temperature_exp_decay_factor * epoch)
 
     def _downsample(self, x):
         """Downsample/rescale high resolution image to make low resolution version
