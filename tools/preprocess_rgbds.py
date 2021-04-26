@@ -39,14 +39,17 @@ def process(dataset_cfg, n_threads, mode):
 
     loader_params = {
         'batch_size': n_threads,
-        'num_workers': n_threads*2,
+        'num_workers': n_threads,
         'pin_memory': True,
         'collate_fn': MiscUtils.safe_collate,  # safely remove broken samples
     }
     loader = DataLoader(dataset, shuffle=False, **loader_params)
 
-    for i, data in enumerate(loader):
-        print('{}/{}'.format(i, len(loader)))
+    try:
+        for i, data in enumerate(loader):
+            print('{}/{}'.format(i, len(loader)))
+    except Exception:
+        pass
 
 
 def main():
