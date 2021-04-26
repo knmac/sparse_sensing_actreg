@@ -48,7 +48,7 @@ def process(dataset_cfg, n_threads, mode):
 
     try:
         for i, data in enumerate(loader):
-            print('{}/{}'.format(i, len(loader)))
+            print('--> batch {}/{}: DONE'.format(i, len(loader)))
     except Exception:
         pass
 
