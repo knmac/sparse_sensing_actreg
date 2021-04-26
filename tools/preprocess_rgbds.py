@@ -23,6 +23,7 @@ class EpicWrapper(EpicKitchenDataset):
         indices = np.arange(record.num_frames['RGBDS'])
         for idx in indices:
             self._load_data('RGBDS', record, idx)
+        print('vid {}/{}: DONE!'.format(index, len(self.video_list)))
 
 
 def process(dataset_cfg, n_threads, mode):
@@ -40,7 +41,7 @@ def process(dataset_cfg, n_threads, mode):
     loader_params = {
         'batch_size': n_threads,
         'num_workers': n_threads,
-        'pin_memory': True,
+        'pin_memory': False,
         'collate_fn': MiscUtils.safe_collate,  # safely remove broken samples
     }
     loader = DataLoader(dataset, shuffle=False, **loader_params)
