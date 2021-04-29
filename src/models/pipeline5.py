@@ -286,47 +286,14 @@ class Pipeline5(BaseModel):
         # self._check(_rgb_high, attn, bboxes)
 
         # Extract regions and feed in high_feat_model
-        high_feat = []
-        for k in range(self.spatial_sampler.top_k):
-            high_feat_k = []
-            for b in range(batch_size):
-                tops = bboxes[b, :, k, 0]
-                lefts = bboxes[b, :, k, 1]
-                bottoms = bboxes[b, :, k, 2]
-                rights = bboxes[b, :, k, 3]
-
-                # Batch regions across time b/c of consisting size
-                regions_k_b = []
-                for t in range(self.num_segments):
-                    regions_k_b.append(
-                        _rgb_high[b, t, :,
-                                  tops[t]:bottoms[t],
-                                  lefts[t]:rights[t]
-                                  ].unsqueeze(dim=0))
-                regions_k_b = torch.cat(regions_k_b, dim=0)
-
-                # Tensor manipulation to prepare
-                regions_k_b = regions_k_b.unsqueeze(dim=0)
-                regions_k_b = regions_k_b.view(
-                    [1, regions_k_b.shape[1]*regions_k_b.shape[2],
-                     regions_k_b.shape[3], regions_k_b.shape[4]])
-
-                # Feed the regions to high_feat_model
-                out = self.high_feat_model({self._pivot_mod_name: regions_k_b})
-                high_feat_k.append(out.unsqueeze(dim=0))
-
-            # Concat across batch dim and collect
-            high_feat_k = torch.cat(high_feat_k, dim=0)
-            if self.feat_process_type == 'reduce':
-                high_feat.append(self.relu(self.fc_reduce_high(high_feat_k)))
-            elif self.feat_process_type == 'add':
-                high_feat.append(high_feat_k)
-            elif self.feat_process_type == 'cat':
-                high_feat.append(high_feat_k)
-
-        assert len(high_feat) == self.spatial_sampler.top_k
-        assert high_feat[0].shape[0] == batch_size
-        assert high_feat[0].shape[1] == self.num_segments
+        regions = self.spatial_sampler.get_regions_from_bboxes(_rgb_high, bboxes)
+        high_feat = self.high_feat_model(
+            {self._pivot_mod_name: torch.cat(regions, dim=0)})
+        if self.feat_process_type == 'reduce':
+            high_feat = self.relu(self.fc_reduce_high(high_feat))
+        high_feat = high_feat.view(
+            self.spatial_sampler.top_k, batch_size, self.num_segments, -1)
+        high_feat = [item for item in high_feat]
 
         # Action recognition --------------------------------------------------
         if self.feat_process_type == 'reduce':

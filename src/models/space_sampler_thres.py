@@ -386,6 +386,38 @@ class SpatialSamplerThres():
         new_bboxes = np.array([bboxes[t][orders[t]] for t in range(T)])
         return new_bboxes, orders
 
+    def get_regions_from_bboxes(self, x, bboxes):
+        """Get regions from input, given the bounding boxes
+
+        Args:
+            x: input tensor of shape (B, T, C, H, W)
+
+        Return:
+            regions: list of K tensors, each of shape (B, T, C, H', W')
+        """
+        batch_size, num_segments, _, _, _ = x.shape
+
+        regions = []
+        for k in range(self.top_k):
+            regions_k = []
+            for b in range(batch_size):
+                tops = bboxes[b, :, k, 0]
+                lefts = bboxes[b, :, k, 1]
+                bottoms = bboxes[b, :, k, 2]
+                rights = bboxes[b, :, k, 3]
+
+                # Batch regions across time b/c of consisting size
+                regions_k_b = []
+                for t in range(num_segments):
+                    regions_k_b.append(
+                        x[b, t, :, tops[t]:bottoms[t], lefts[t]:rights[t]
+                          ].unsqueeze(dim=0))
+                regions_k_b = torch.cat(regions_k_b, dim=0)
+                regions_k.append(regions_k_b.unsqueeze(dim=0))
+            regions_k = torch.cat(regions_k, dim=0)
+            regions.append(regions_k)
+        return regions
+
 
 class BBGraph:
     """Graph for bboxes"""
