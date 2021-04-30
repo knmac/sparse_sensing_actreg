@@ -52,7 +52,7 @@ class SSIM(torch.nn.Module):
         self.channel = channel
         self.window = create_window(window_size, self.channel)
 
-    def forward(self, img1, img2):
+    def forward(self, img1, img2, size_average=None):
         (_, channel, _, _) = img1.size()
 
         if channel == self.channel and self.window.data.type() == img1.data.type() and self.window.device == img1.device:
@@ -66,7 +66,11 @@ class SSIM(torch.nn.Module):
 
             self.window = window
             self.channel = channel
-        return _ssim(img1, img2, window, self.window_size, channel, self.size_average)
+
+        # Override size_average if required
+        if size_average is None:
+            size_average = self.size_average
+        return _ssim(img1, img2, window, self.window_size, channel, size_average)
 
 
 def ssim(img1, img2, window_size=11, size_average=True):

@@ -95,3 +95,91 @@ class TemporalSamplerRNN(BaseModel):
         r_t = torch.cat([F.gumbel_softmax(p_t[b_i:b_i + 1], tau=temperature, hard=True) for b_i in range(p_t.shape[0])])
 
         return r_t, ssim
+
+    def sample_multiple_frames(self, attn, hallu_model, temperature):
+        """Sample a video with multiple frames
+
+        Return:
+            r_list: sampling vector
+        """
+        self.rnn.flatten_parameters()
+
+        batch_size = attn.shape[0]
+        num_segments = attn.shape[1]
+        remain_skip_vector = torch.zeros(batch_size, 1)
+        old_samp_mem = None  # hidden memory for time sampler
+        old_hallu_mem = None  # hidden memory for hallucination
+        r_all = []
+
+        # Warming up: run the first frame to get hallucination ----------------
+        hallu, hallu_mem = hallu_model(attn[:, 0].unsqueeze(dim=1), old_hallu_mem)
+        hallu = hallu[:, 0]
+        hallu_dim = list(hallu.shape[1:])
+
+        old_hallu_mem = hallu_mem
+        old_hallu = hallu
+        old_r_t = torch.zeros([batch_size, self.max_frames_skip+1]).to(attn.device)
+        old_r_t[:, 0] = 1  # no skipping on the 1st frame
+        r_all.append(old_r_t)
+
+        # Remaining frames ----------------------------------------------------
+        for t in range(1, num_segments):
+            # Prepare input
+            x = []
+            if self.use_attn:
+                x.append(attn[:, t].flatten(start_dim=1))
+            if self.use_hallu:
+                x.append(old_hallu.flatten(start_dim=1))
+            if self.use_ssim:
+                ssim = -self.belief_criterion(
+                    attn[:, t], old_hallu, size_average=False).unsqueeze(1)
+                x.append(ssim)
+            x = torch.cat(x, dim=1).unsqueeze(dim=1)  # (N, 1, C) -> sequence of 1
+
+            # Feed input to RNN time sampler
+            out, samp_mem = self.rnn(x, old_samp_mem)
+            out = self.fc_out(out).squeeze(dim=1)
+
+            # Hallucinate for future
+            hallu, hallu_mem = hallu_model(attn[:, t].unsqueeze(dim=1), old_hallu_mem)
+            hallu = hallu[:, 0]
+
+            # Sampling using current frame
+            p_t = torch.log(self.softmax(out).clamp(min=1e-8))
+            r_t = torch.cat(
+                [F.gumbel_softmax(p_t[b_i:b_i + 1], tau=temperature, hard=True)
+                 for b_i in range(p_t.shape[0])])
+
+            # Update states by batch
+            if old_samp_mem is not None:
+                take_bool = remain_skip_vector > 0.5
+                # take_old = torch.tensor(take_bool, dtype=torch.float).to(attn.device)
+                # take_curr = torch.tensor(~take_bool, dtype=torch.float).to(attn.device)
+                take_old = take_bool.to(attn.device, torch.float)
+                take_curr = 1.0 - take_old
+
+                samp_mem = (old_samp_mem * take_old) + (samp_mem * take_curr)
+                r_t = (old_r_t * take_old) + (r_t * take_curr)
+
+                take_old_r = take_old.unsqueeze(-1).unsqueeze(-1).repeat([1] + hallu_dim)
+                take_curr_r = take_curr.unsqueeze(-1).unsqueeze(-1).repeat([1] + hallu_dim)
+                for ll in range(len(hallu_mem[0])):
+                    hallu_mem[0][ll] = (old_hallu_mem[0][ll] * take_old_r) + \
+                        (hallu_mem[0][ll] * take_curr_r)
+                hallu = (old_hallu * take_old_r) + (hallu * take_curr_r)
+
+            # Update skipping vector
+            for batch_i in range(batch_size):
+                for skip_i in range(self.max_frames_skip+1):
+                    if remain_skip_vector[batch_i][0] < 0.5 and r_t[batch_i][skip_i] > 0.5:
+                        remain_skip_vector[batch_i][0] = skip_i
+
+            old_samp_mem = samp_mem
+            old_r_t = r_t
+            old_hallu_mem = hallu_mem
+            old_hallu = hallu
+            r_all.append(r_t)
+            remain_skip_vector = (remain_skip_vector - 1).clamp(0)
+
+        r_all = torch.stack(r_all, dim=1)
+        return r_all
