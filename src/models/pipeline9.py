@@ -329,26 +329,27 @@ class Pipeline9(BaseModel):
         # =====================================================================
         # Spatial sampling
         # =====================================================================
-        # Extract bboxes and corresponding regions
-        bboxes = self.spatial_sampler.sample_multiple_frames(
-            attn, rgb_high.shape[-1], reorder_vid=False)
-        regions = self.spatial_sampler.get_regions_from_bboxes(rgb_high, bboxes)
+        if self.spatial_sampler.top_k != 0:
+            # Extract bboxes and corresponding regions
+            bboxes = self.spatial_sampler.sample_multiple_frames(
+                attn, rgb_high.shape[-1], reorder_vid=False)
+            regions = self.spatial_sampler.get_regions_from_bboxes(rgb_high, bboxes)
 
-        # Extract high feat
-        high_feat = self.high_feat_model(
-            {self._pivot_mod_name: torch.cat(regions, dim=0)})
-        high_feat = high_feat.view(
-            self.spatial_sampler.top_k, batch_size, self.num_segments, -1)
-        high_feat = [item for item in high_feat]
+            # Extract high feat
+            high_feat = self.high_feat_model(
+                {self._pivot_mod_name: torch.cat(regions, dim=0)})
+            high_feat = high_feat.view(
+                self.spatial_sampler.top_k, batch_size, self.num_segments, -1)
+            high_feat = [item for item in high_feat]
 
-        # Sort sampled bboxes to permute high_feat
-        order = np.tile(np.arange(self.spatial_sampler.top_k),
-                        (batch_size, self.num_segments, 1))
-        for batch_i in range(batch_size):
-            indices = torch.where(r_all[batch_i, :, 0] == 1)[0].cpu().detach().numpy()
-            bboxes_samp = bboxes[batch_i, indices]
-            _, reorder = self.spatial_sampler._sort_bboxes_dijkstra(bboxes_samp)
-            order[batch_i, indices, :] = reorder
+            # Sort sampled bboxes to permute high_feat
+            order = np.tile(np.arange(self.spatial_sampler.top_k),
+                            (batch_size, self.num_segments, 1))
+            for batch_i in range(batch_size):
+                indices = torch.where(r_all[batch_i, :, 0] == 1)[0].cpu().detach().numpy()
+                bboxes_samp = bboxes[batch_i, indices]
+                _, reorder = self.spatial_sampler._sort_bboxes_dijkstra(bboxes_samp)
+                order[batch_i, indices, :] = reorder
 
         # =====================================================================
         # Classification
