@@ -354,6 +354,7 @@ class Pipeline9(BaseModel):
         # =====================================================================
         # Classification
         # =====================================================================
+        has_multihead = type(self.actreg_model).__name__ in ['ActregGRU3']
         old_pred, old_pred_mem = None, None
         pred_all = []
 
@@ -377,6 +378,7 @@ class Pipeline9(BaseModel):
             all_feats = all_feats.unsqueeze(dim=1)
 
             # Feed features to classifier
+            # NOTE: GRU memory has shape (layer, batch, dim)
             pred, pred_mem = self.actreg_model(all_feats, old_pred_mem)
 
             # Update states by batch, only update based on r_all
@@ -388,23 +390,96 @@ class Pipeline9(BaseModel):
                 take_old = take_bool.to(r_all.device, torch.float)
                 take_curr = 1.0 - take_old
 
-                pred = ((old_pred[0] * take_old) + (pred[0] * take_curr),
-                        (old_pred[1] * take_old) + (pred[1] * take_curr))
-                pred_mem = (old_pred_mem * take_old) + (pred_mem * take_curr)
+                if not has_multihead:
+                    pred = ((old_pred[0] * take_old) + (pred[0] * take_curr),
+                            (old_pred[1] * take_old) + (pred[1] * take_curr))
+                    pred_mem = (old_pred_mem * take_old.unsqueeze(0)) + (pred_mem * take_curr.unsqueeze(0))
+                else:
+                    assert self.actreg_model._n_heads == 3
+                    pred = (
+                        # Head 1
+                        (
+                            (old_pred[0][0] * take_old) + (pred[0][0] * take_curr),
+                            (old_pred[0][1] * take_old) + (pred[0][1] * take_curr),
+                        ),
+                        (old_pred[1] * take_old) + (pred[1] * take_curr),
+                        # Head 2
+                        (
+                            (old_pred[2][0] * take_old) + (pred[2][0] * take_curr),
+                            (old_pred[2][1] * take_old) + (pred[2][1] * take_curr),
+                        ),
+                        (old_pred[3] * take_old) + (pred[3] * take_curr),
+                        # Head 3
+                        (
+                            (old_pred[4][0] * take_old) + (pred[4][0] * take_curr),
+                            (old_pred[4][1] * take_old) + (pred[4][1] * take_curr),
+                        ),
+                        (old_pred[5] * take_old) + (pred[5] * take_curr),
+                    )
+                    pred_mem = (
+                        (old_pred_mem[0] * take_old.unsqueeze(0)) + (pred_mem[0] * take_curr.unsqueeze(0)),
+                        (old_pred_mem[1] * take_old.unsqueeze(0)) + (pred_mem[1] * take_curr.unsqueeze(0)),
+                        (old_pred_mem[2] * take_old.unsqueeze(0)) + (pred_mem[2] * take_curr.unsqueeze(0)),
+                    )
 
             old_pred = pred
             old_pred_mem = pred_mem
             pred_all.append(pred)
-        pred_all = (torch.stack([item[0] for item in pred_all], dim=1),
-                    torch.stack([item[1] for item in pred_all], dim=1))
+
+        if not has_multihead:
+            pred_all = (torch.stack([pred[0] for pred in pred_all], dim=1),
+                        torch.stack([pred[1] for pred in pred_all], dim=1))
+        else:
+            pred_all = (
+                # Head 1
+                (
+                    torch.stack([pred[0][0] for pred in pred_all], dim=1),
+                    torch.stack([pred[0][1] for pred in pred_all], dim=1),
+                ),
+                torch.stack([pred[1] for pred in pred_all], dim=1),
+                # Head 2
+                (
+                    torch.stack([pred[2][0] for pred in pred_all], dim=1),
+                    torch.stack([pred[2][1] for pred in pred_all], dim=1),
+                ),
+                torch.stack([pred[3] for pred in pred_all], dim=1),
+                # Head 3
+                (
+                    torch.stack([pred[4][0] for pred in pred_all], dim=1),
+                    torch.stack([pred[4][1] for pred in pred_all], dim=1),
+                ),
+                torch.stack([pred[5] for pred in pred_all], dim=1),
+            )
 
         # =====================================================================
         # Combine logits
         # =====================================================================
         r_tensor = r_all[:, :, 0].unsqueeze(dim=-1)
         t_tensor = r_tensor.sum(dim=[1, 2]).unsqueeze(dim=-1)
-        pred_all = (torch.sum(pred_all[0] * r_tensor, dim=1) / t_tensor,
-                    torch.sum(pred_all[1] * r_tensor, dim=1) / t_tensor)
+        if not has_multihead:
+            pred_all = (torch.sum(pred_all[0] * r_tensor, dim=1) / t_tensor,
+                        torch.sum(pred_all[1] * r_tensor, dim=1) / t_tensor)
+        else:
+            pred_all = (
+                # Head 1
+                (
+                    torch.sum(pred_all[0][0] * r_tensor, dim=1) / t_tensor,
+                    torch.sum(pred_all[0][1] * r_tensor, dim=1) / t_tensor,
+                ),
+                pred_all[1].mean(dim=1),
+                # Head 2
+                (
+                    torch.sum(pred_all[2][0] * r_tensor, dim=1) / t_tensor,
+                    torch.sum(pred_all[2][1] * r_tensor, dim=1) / t_tensor,
+                ),
+                pred_all[3].mean(dim=1),
+                # Head 3
+                (
+                    torch.sum(pred_all[4][0] * r_tensor, dim=1) / t_tensor,
+                    torch.sum(pred_all[4][1] * r_tensor, dim=1) / t_tensor,
+                ),
+                pred_all[5].mean(dim=1),
+            )
 
         # =====================================================================
         # Compute efficiency loss
