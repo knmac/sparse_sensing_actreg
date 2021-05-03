@@ -158,7 +158,8 @@ class TemporalSamplerRNN(BaseModel):
                 take_old = take_bool.to(attn.device, torch.float)
                 take_curr = 1.0 - take_old
 
-                samp_mem = (old_samp_mem * take_old) + (samp_mem * take_curr)
+                # GRU memory --> (layer, batch, dim)
+                samp_mem = (old_samp_mem * take_old.unsqueeze(0)) + (samp_mem * take_curr.unsqueeze(0))
                 r_t = (old_r_t * take_old) + (r_t * take_curr)
 
                 take_old_r = take_old.unsqueeze(-1).unsqueeze(-1).repeat([1] + hallu_dim)
