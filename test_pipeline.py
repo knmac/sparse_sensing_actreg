@@ -54,6 +54,7 @@ def test_with_gt(model, device, test_loader):
     all_output = []
 
     # Test
+    multihead = type(model.module.actreg_model).__name__ in ['ActregGRU3']
     for i, (sample, target) in enumerate(test_loader):
         # Forward
         sample = {k: v.to(device) for k, v in sample.items()}
@@ -75,9 +76,22 @@ def test_with_gt(model, device, test_loader):
             all_gflops.append(gflops)
         all_output.append(output)
 
+        # Parse output
+        if not multihead:
+            verb_output = output[0]
+            noun_output = output[1]
+        else:
+            n_heads = len(output) // 2
+            verb_output, noun_output = None, None
+            for h in range(n_heads):
+                _out, _weight = output[2*h], output[2*h+1]
+                _weight = _weight[0][0]
+                verb_output = _out[0] if verb_output is None else verb_output+_out[0]
+                noun_output = _out[1] if noun_output is None else noun_output+_out[1]
+            verb_output /= n_heads
+            noun_output /= n_heads
+
         # Compute metrics
-        verb_output = output[0]
-        noun_output = output[1]
         batch_size = verb_output.shape[0]
 
         verb_prec1, verb_prec5 = accuracy(verb_output, target['verb'], topk=(1, 5))
