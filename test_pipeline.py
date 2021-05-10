@@ -39,7 +39,7 @@ def test_with_gt(model, device, test_loader):
     """Test on the validation set with groundtruth labels
     """
     model_name = type(model.module).__name__
-    assert model_name in ['Pipeline6', 'Pipeline8']
+    assert model_name in ['Pipeline6', 'Pipeline8', 'Pipeline9']
     assert test_loader.dataset.name == 'epic_kitchens', \
         'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
 
@@ -60,7 +60,7 @@ def test_with_gt(model, device, test_loader):
         target = {k: v.to(device) for k, v in target.items()}
         if model_name == 'Pipeline6':
             output, extra_output = model(sample)
-        elif model_name == 'Pipeline8':
+        elif model_name in ['Pipeline8', 'Pipeline9']:
             output, _, gflops = model(sample)
 
         # Collect extra results
@@ -71,7 +71,7 @@ def test_with_gt(model, device, test_loader):
                 all_ssim.append(extra_output['ssim'])
             else:
                 all_ssim.append(extra_output['ssim'].cpu().numpy())
-        elif model_name == 'Pipeline8':
+        elif model_name in ['Pipeline8', 'Pipeline9']:
             all_gflops.append(gflops)
         all_output.append(output)
 
@@ -133,7 +133,7 @@ def test_with_gt(model, device, test_loader):
             'all_ssim': all_ssim,
             'all_time': all_time,
         })
-    elif model_name == 'Pipeline8':
+    elif model_name in ['Pipeline8', 'Pipeline9']:
         results.update({
             'all_gflops': torch.cat(all_gflops, dim=0).cpu().detach().numpy(),
             'gflops_full': model.module.gflops_full,
@@ -146,7 +146,7 @@ def test_without_gt(model, device, test_loader):
     """Test on the test set without groundtruth labels
     """
     model_name = type(model.module).__name__
-    assert model_name in ['Pipeline5', 'Pipeline6', 'Pipeline8']
+    assert model_name in ['Pipeline5', 'Pipeline6', 'Pipeline8', 'Pipeline9']
     assert test_loader.dataset.name == 'epic_kitchens', \
         'Unsupported dataset: {}'.format(test_loader.dataset.dataset_name)
 
@@ -169,7 +169,7 @@ def test_without_gt(model, device, test_loader):
             output = model(sample)
         elif model_name == 'Pipeline6':
             output, extra_output = model(sample)
-        elif model_name == 'Pipeline8':
+        elif model_name in ['Pipeline8', 'Pipeline9']:
             output, _, gflops = model(sample)
 
         # Parse outputs
@@ -207,7 +207,7 @@ def test_without_gt(model, device, test_loader):
                 all_ssim.append(extra_output['ssim'])
             else:
                 all_ssim.append(extra_output['ssim'].cpu().numpy())
-        elif model_name == 'Pipeline8':
+        elif model_name in ['Pipeline8', 'Pipeline9']:
             all_gflops.append(gflops)
 
     # Print out message
@@ -224,7 +224,7 @@ def test_without_gt(model, device, test_loader):
             'all_ssim': all_ssim,
             'all_time': all_time,
         }
-    elif model_name == 'Pipeline8':
+    elif model_name in ['Pipeline8', 'Pipeline9']:
         all_gflops = torch.cat(all_gflops, dim=0)
 
         extra_results = {
