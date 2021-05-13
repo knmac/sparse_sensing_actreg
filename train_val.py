@@ -369,6 +369,10 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
 
             _log_message('training', sum_writer, run_iter, log_content, msg_prefix)
 
+    # Record the gradient flow of the last batch
+    grad_flow = MiscUtils.plot_grad_flow(model.module.named_parameters(), show=False)
+    sum_writer.add_image('grad_flow', grad_flow, run_iter)
+
     # =========================================================================
     # Collect training metrics
     # =========================================================================

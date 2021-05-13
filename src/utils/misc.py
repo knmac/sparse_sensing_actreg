@@ -1,4 +1,5 @@
 """Misc helper methods"""
+import io
 import os
 import sys
 import glob
@@ -7,10 +8,12 @@ import argparse
 
 import torch
 import torchvision
+from torchvision.transforms import ToTensor
 from torch.utils.data.dataloader import default_collate
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from PIL import Image
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -469,7 +472,17 @@ class MiscUtils:
         return matched_1, matched_2
 
     @staticmethod
-    def plot_grad_flow(named_parameters, show=True, save_fname=None):
+    def plot_grad_flow(named_parameters, show=True):
+        """Plot the gradients of all layers with requires_grad
+
+        Args:
+            named_parameters: model's layers
+            show: if `True` will show a figure of the gradient flow, otherwise
+                will return an image tensor
+
+        Return:
+            Image tensor if show is False
+        """
         ave_grads = []
         max_grads = []
         layers = []
@@ -479,6 +492,7 @@ class MiscUtils:
                 ave_grads.append(p.grad.abs().mean())
                 max_grads.append(p.grad.abs().max())
 
+        plt.figure(figsize=(12, 10))
         plt.bar(np.arange(len(max_grads)), max_grads, alpha=0.3, lw=1, color="c")
         plt.bar(np.arange(len(max_grads)), ave_grads, alpha=0.3, lw=1, color="b")
         plt.hlines(0, 0, len(ave_grads)+1, lw=2, color="k")
@@ -494,10 +508,18 @@ class MiscUtils:
                     Line2D([0], [0], color="b", lw=4),
                     Line2D([0], [0], color="k", lw=4)],
                    ['max-gradient', 'mean-gradient', 'zero-gradient'])
+        plt.tight_layout()
 
         if show:
             plt.show()
+            plt.close()
+        else:
+            # Get buffered image
+            buf = io.BytesIO()
+            plt.savefig(buf, format='jpeg')
+            buf.seek(0)
+            fig_img = Image.open(buf)
+            fig_img = ToTensor()(fig_img)
 
-        if save_fname is not None:
-            plt.savefig(save_fname)
-        plt.close()
+            plt.close()
+            return fig_img
