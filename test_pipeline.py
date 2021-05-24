@@ -153,6 +153,15 @@ def test_with_gt(model, device, test_loader):
             'gflops_full': model.module.gflops_full,
             'gflops_prescan': model.module.gflops_prescan,
         })
+
+        n_skipped = (results['all_gflops'] == 0).sum()
+        n_prescanned = (results['all_gflops'] == model.module.gflops_prescan).sum()
+        n_nonskipped = (results['all_gflops'] == model.module.gflops_full).sum()
+        msg = '\n'
+        msg += '  Skipped frames     {}\n'.format(n_skipped)
+        msg += '  Prescanned frames  {}\n'.format(n_prescanned)
+        msg += '  Non-skipped frames {}\n'.format(n_nonskipped)
+        logger.info(msg)
     return results
 
 
