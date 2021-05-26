@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 PYTHONFAULTHANDLER=1 python main.py \
-    --model_cfg   'configs/model_cfgs/activitynet/pipeline_simple_san19pair_rgb_112.yaml' \
+    --model_cfg   'configs/model_cfgs/activitynet/pipeline_simple_san19pair_rgb_224.yaml' \
     --dataset_cfg 'configs/dataset_cfgs/activitynet.yaml' \
     --train_cfg   'configs/train_cfgs/train_san.yaml' \
-    --experiment_suffix 'san19pair_112_avg_rerun' \
+    --experiment_suffix 'san19pair_224' \
     --is_training true \
     --train_mode  'from_scratch' \
     --logdir      'logs' \
