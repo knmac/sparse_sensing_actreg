@@ -513,13 +513,13 @@ class Pipeline8(BaseModel):
         extra_outputs = tmp
 
         # Compute efficiency loss
-        loss_eff, gflops_lst = self.compute_efficiency_loss(extra_outputs['r'])
+        loss_eff, loss_usage, gflops_lst = self.compute_efficiency_loss(extra_outputs['r'])
         # self._check_skip(gflops_lst, extra_outputs['skip'])
         gflops_lst = torch.tensor(gflops_lst).to(loss_eff.device)
 
         if get_extra:
-            return outputs, loss_eff, gflops_lst, extra_outputs
-        return outputs, loss_eff, gflops_lst
+            return outputs, loss_eff, loss_usage, gflops_lst, extra_outputs
+        return outputs, loss_eff, loss_usage, gflops_lst
 
     def _check_skip(self, gflops_lst, skip):
         full = np.zeros(gflops_lst.shape)
@@ -571,7 +571,7 @@ class Pipeline8(BaseModel):
                     t += skip
 
         loss_eff *= self.eff_loss_weights
-        return loss_eff, gflops_lst
+        return loss_eff, torch.zeros_like(loss_eff), gflops_lst
 
     def warmup(self, low_feat, attn, spec_feat, rgb_high):
         """Warm up to generate memory and avoid skipping the 1st frame. Similar

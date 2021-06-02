@@ -234,6 +234,7 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
         belief_losses = AverageMeter()
     if has_eff:
         eff_losses = AverageMeter()
+        usage_losses = AverageMeter()
 
     # =========================================================================
     # Training loop
@@ -262,8 +263,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                 else:
                     loss_belief = loss_belief.mean()
             if has_eff:
-                output, loss_eff, _ = model(sample)
+                output, loss_eff, loss_usage, _ = model(sample)
                 loss_eff = loss_eff.mean()
+                loss_usage = loss_usage.mean()
         else:
             output = model(sample)
 
@@ -284,8 +286,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                 loss += loss_belief
                 belief_losses.update(loss_belief.item(), batch_size)
             if has_eff:
-                loss += loss_eff
+                loss += loss_eff + loss_usage
                 eff_losses.update(loss_eff.item(), batch_size)
+                usage_losses.update(loss_usage.item(), batch_size)
             loss = loss / (n_extra_losses + 1)
             prec1, prec5 = accuracy(output, target, topk=(1, 5))
         else:
@@ -307,8 +310,9 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
                 loss += loss_belief
                 belief_losses.update(loss_belief.item(), batch_size)
             if has_eff:
-                loss += loss_eff
+                loss += loss_eff + loss_usage
                 eff_losses.update(loss_eff.item(), batch_size)
+                usage_losses.update(loss_usage.item(), batch_size)
             loss = loss / (n_extra_losses + 2)
 
             # Update batch metrics
@@ -365,7 +369,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
             if has_belief:
                 log_content.update({'belief_losses': belief_losses})
             if has_eff:
-                log_content.update({'eff_losses': eff_losses})
+                log_content.update({'eff_losses': eff_losses,
+                                    'usage_losses': usage_losses})
 
             _log_message('training', sum_writer, run_iter, log_content, msg_prefix)
 
@@ -388,7 +393,8 @@ def _train_one_epoch(model, device, criterion, train_loader, optimizer,
     if has_belief:
         training_metrics.update({'train_belief_loss': belief_losses.avg})
     if has_eff:
-        training_metrics.update({'train_eff_loss': eff_losses.avg})
+        training_metrics.update({'train_eff_loss': eff_losses.avg,
+                                 'train_usage_loss': usage_losses.avg})
     return training_metrics
 
 
@@ -424,6 +430,7 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
             belief_losses = AverageMeter()
         if has_eff:
             eff_losses = AverageMeter()
+            usage_losses = AverageMeter()
             all_gflops = []
 
         # =====================================================================
@@ -449,9 +456,10 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                     else:
                         loss_belief = loss_belief.mean()
                 if has_eff:
-                    output, loss_eff, gflops = model(sample)
+                    output, loss_eff, loss_usage, gflops = model(sample)
                     all_gflops.append(gflops)
                     loss_eff = loss_eff.mean()
+                    loss_usage = loss_usage.mean()
             else:
                 output = model(sample)
 
@@ -466,8 +474,9 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                     loss += loss_belief
                     belief_losses.update(loss_belief.item(), batch_size)
                 if has_eff:
-                    loss += loss_eff
+                    loss += loss_eff + loss_usage
                     eff_losses.update(loss_eff.item(), batch_size)
+                    usage_losses.update(loss_usage.item(), batch_size)
                 loss = loss / (n_extra_losses + 1)
                 prec1, prec5 = accuracy(output, target, topk=(1, 5))
             else:
@@ -483,8 +492,9 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
                     loss += loss_belief
                     belief_losses.update(loss_belief.item(), batch_size)
                 if has_eff:
-                    loss += loss_eff
+                    loss += loss_eff + loss_usage
                     eff_losses.update(loss_eff.item(), batch_size)
+                    usage_losses.update(loss_usage.item(), batch_size)
                 loss = loss / (n_extra_losses + 2)
 
                 # Update batch metrics
@@ -530,6 +540,7 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         if has_eff:
             log_content.update({
                 'eff_losses': eff_losses,
+                'usage_losses': usage_losses,
                 'total_gflops': all_gflops.sum().item(),
                 'avg_gflops': all_gflops.mean().item(),
                 'n_skipped': (all_gflops == 0).sum().item(),
@@ -555,6 +566,7 @@ def validate(model, device, criterion, val_loader, sum_writer=None, run_iter=Non
         if has_eff:
             val_metrics.update({
                 'val_eff_loss': eff_losses.avg,
+                'val_usage_loss': usage_losses.avg,
                 'total_gflops': all_gflops.sum().item(),
                 'avg_gflops': all_gflops.mean().item(),
                 'n_skipped': (all_gflops == 0).sum().item(),
@@ -588,6 +600,7 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
                 sum_writer.add_scalars('data/belief/loss', {phase: data['belief_losses'].avg}, run_iter)
             if 'eff_losses' in data.keys():
                 sum_writer.add_scalars('data/eff/loss', {phase: data['eff_losses'].avg}, run_iter)
+                sum_writer.add_scalars('data/usage/loss', {phase: data['usage_losses'].avg}, run_iter)
             if 'total_gflops' in data.keys():
                 sum_writer.add_scalars('data/gflops/total', {phase: data['total_gflops']}, run_iter)
                 sum_writer.add_scalars('data/gflops/avg', {phase: data['avg_gflops']}, run_iter)
@@ -606,6 +619,7 @@ def _log_message(phase, sum_writer, run_iter, data, msg_prefix=''):
         msg += '\n  Belief Loss {:.4f}'.format(data['belief_losses'].avg)
     if 'eff_losses' in data.keys():
         msg += '\n  Eff Loss {:.4f}'.format(data['eff_losses'].avg)
+        msg += '\n  Usage Loss {:.4f}'.format(data['usage_losses'].avg)
     if 'total_gflops' in data.keys():
         msg += '\n  GFLOPS: accumulated {:.4f}  avg_perframe {:.4f}'.format(
             data['total_gflops'], data['avg_gflops'])

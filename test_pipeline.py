@@ -62,7 +62,7 @@ def test_with_gt(model, device, test_loader):
         if model_name == 'Pipeline6':
             output, extra_output = model(sample)
         elif model_name in ['Pipeline8', 'Pipeline9']:
-            output, _, gflops = model(sample)
+            output, _, _, gflops = model(sample)
 
         # Collect extra results
         if model_name == 'Pipeline6':
@@ -193,7 +193,7 @@ def test_without_gt(model, device, test_loader):
         elif model_name == 'Pipeline6':
             output, extra_output = model(sample)
         elif model_name in ['Pipeline8', 'Pipeline9']:
-            output, _, gflops = model(sample)
+            output, _, _, gflops = model(sample)
 
         # Parse outputs
         if not multihead:

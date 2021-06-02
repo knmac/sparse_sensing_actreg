@@ -484,13 +484,13 @@ class Pipeline9(BaseModel):
         # =====================================================================
         # Compute efficiency loss
         # =====================================================================
-        loss_eff, gflops_lst = self.compute_efficiency_loss(r_all)
+        loss_eff, loss_usage, gflops_lst = self.compute_efficiency_loss(r_all)
         gflops_lst = torch.tensor(gflops_lst).to(loss_eff.device)
 
         if get_extra:
             extra_outputs = {'r': r_all}
             return pred_all, loss_eff, gflops_lst, extra_outputs
-        return pred_all, loss_eff, gflops_lst
+        return pred_all, loss_eff, loss_usage, gflops_lst
 
     def compute_efficiency_loss(self, r_all):
         """Compute the efficient loss based on sampling and models FLOPS
@@ -523,8 +523,8 @@ class Pipeline9(BaseModel):
         loss_usage = r_all.mean(dim=[0, 1])
         loss_usage = torch.norm(loss_usage - loss_usage.mean()) * self.usage_loss_weights
 
-        loss_eff += loss_usage
-        return loss_eff, gflops_lst
+        # loss_eff += loss_usage
+        return loss_eff, loss_usage, gflops_lst
 
     def freeze_fn(self, freeze_mode):
         self.low_feat_model.freeze_fn(freeze_mode)
