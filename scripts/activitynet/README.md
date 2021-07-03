@@ -12,7 +12,7 @@
     - run_pipeline5_rgb_san19pairfreeze_actreggru2_top1_cat.sh
     - run_pipeline5_rgb_san19pairfreeze_actreggru2_top2_cat.sh
     - run_pipeline5_rgb_san19pairfreeze_actreggru2_top3_cat.sh
-- [ ] top 1/2/3 actreggru2+nolowres (=> *local view*)
+- [x] top 1/2/3 actreggru2+nolowres (=> *local view*)
     - run_pipeline5_rgb_san19pairfreeze_actreggru2_top1_cat_nolowres.sh
     - run_pipeline5_rgb_san19pairfreeze_actreggru2_top2_cat_nolowres.sh
     - run_pipeline5_rgb_san19pairfreeze_actreggru2_top3_cat_nolowres.sh
