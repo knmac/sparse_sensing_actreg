@@ -91,10 +91,13 @@ class Pipeline3(BaseModel):
         # There will be no gradient for the action recognition part. This is
         # only here to make train_val.py happy
         batch_size = attn.shape[0]
-        output = (
-            torch.zeros([batch_size, self.num_class[0]]).to(self.device),
-            torch.zeros([batch_size, self.num_class[1]]).to(self.device),
-        )
+        if isinstance(self.num_class, list):
+            output = (
+                torch.zeros([batch_size, self.num_class[0]]).to(self.device),
+                torch.zeros([batch_size, self.num_class[1]]).to(self.device),
+            )
+        else:
+            output = torch.zeros([batch_size, self.num_class]).to(self.device)
 
         return output, self.compare_belief().unsqueeze(dim=0)
 
