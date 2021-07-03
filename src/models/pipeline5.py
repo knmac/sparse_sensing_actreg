@@ -193,12 +193,13 @@ class Pipeline5(BaseModel):
                      self.spatial_sampler.top_k, rgb_high_flops))
 
         # Spec ----------------------------------------------------------------
-        self.low_feat_model.input_size['Spec'] = 256
-        spec_indim = self.low_feat_model.input_size['Spec']
-        spec_flops, spec_params = get_model_complexity_info(
-            self.low_feat_model.spec, (1, spec_indim, spec_indim), **opts)
-        spec_flops *= 1e-9
-        logger.info('Spec (%03d):         GFLOPS=%.04f' % (spec_indim, spec_flops))
+        if 'Spec' in self.modality:
+            self.low_feat_model.input_size['Spec'] = 256
+            spec_indim = self.low_feat_model.input_size['Spec']
+            spec_flops, spec_params = get_model_complexity_info(
+                self.low_feat_model.spec, (1, spec_indim, spec_indim), **opts)
+            spec_flops *= 1e-9
+            logger.info('Spec (%03d):         GFLOPS=%.04f' % (spec_indim, spec_flops))
 
         # Actreg --------------------------------------------------------------
         actreg_flops, actreg_params = get_model_complexity_info(
@@ -206,12 +207,19 @@ class Pipeline5(BaseModel):
         actreg_flops *= 1e-9
         logger.info('Actreg:             GFLOPS=%.4f' % actreg_flops)
 
-        self.gflops_dict = {
-            'rgb_low': rgb_low_flops,
-            'rgb_high': rgb_high_flops,
-            'spec': spec_flops,
-            'actreg': actreg_flops,
-        }
+        if 'Spec' in self.modality:
+            self.gflops_dict = {
+                'rgb_low': rgb_low_flops,
+                'rgb_high': rgb_high_flops,
+                'spec': spec_flops,
+                'actreg': actreg_flops,
+            }
+        else:
+            self.gflops_dict = {
+                'rgb_low': rgb_low_flops,
+                'rgb_high': rgb_high_flops,
+                'actreg': actreg_flops,
+            }
 
         # GFLOPS of the full pipeline
         logger.info('='*33)
@@ -238,28 +246,37 @@ class Pipeline5(BaseModel):
     def forward(self, x):
         _rgb_high = x[self._pivot_mod_name]
         _rgb_low = self._downsample(_rgb_high)
-        _spec = x['Spec']
+        if 'Spec' in self.modality:
+            _spec = x['Spec']
         batch_size = _rgb_high.shape[0]
 
         # Extract low resolutions features ------------------------------------
         assert self.low_feat_model.modality == ['RGB', 'Spec'] or \
-            self.low_feat_model.modality == ['RGBDS', 'Spec']
-        low_feat, spec_feat = self.low_feat_model(
-            {self._pivot_mod_name: _rgb_low, 'Spec': _spec},
-            return_concat=False)
+            self.low_feat_model.modality == ['RGBDS', 'Spec'] or \
+            self.low_feat_model.modality == ['RGB']
+        if 'Spec' in self.modality:
+            low_feat, spec_feat = self.low_feat_model(
+                {self._pivot_mod_name: _rgb_low, 'Spec': _spec},
+                return_concat=False)
+        else:
+            low_feat = self.low_feat_model(
+                {self._pivot_mod_name: _rgb_low},
+                return_concat=False)[0]
 
         # (B*T, C) --> (B, T, C)
         low_feat = low_feat.view([batch_size,
                                   self.num_segments,
                                   self.low_feat_model.feature_dim])
-        spec_feat = spec_feat.view([batch_size,
-                                    self.num_segments,
-                                    self.low_feat_model.feature_dim])
+        if 'Spec' in self.modality:
+            spec_feat = spec_feat.view([batch_size,
+                                        self.num_segments,
+                                        self.low_feat_model.feature_dim])
 
         # Feature processing
         if self.feat_process_type == 'reduce':
             low_feat = self.relu(self.fc_reduce_low(low_feat))
-            spec_feat = self.relu(self.fc_reduce_spec(spec_feat))
+            if 'Spec' in self.modality:
+                spec_feat = self.relu(self.fc_reduce_spec(spec_feat))
         elif self.feat_process_type == 'add':
             # Do nothing
             pass
@@ -296,17 +313,30 @@ class Pipeline5(BaseModel):
         high_feat = [item for item in high_feat]
 
         # Action recognition --------------------------------------------------
-        if self.feat_process_type == 'reduce':
-            all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
-        elif self.feat_process_type == 'add':
-            all_feats = low_feat + spec_feat
-            for k in range(self.spatial_sampler.top_k):
-                all_feats += high_feat[k]
-        elif self.feat_process_type == 'cat':
-            if self.ignore_lowres:
-                all_feats = torch.cat([spec_feat] + high_feat, dim=2)
-            else:
+        if 'Spec' in self.modality:
+            if self.feat_process_type == 'reduce':
                 all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
+            elif self.feat_process_type == 'add':
+                all_feats = low_feat + spec_feat
+                for k in range(self.spatial_sampler.top_k):
+                    all_feats += high_feat[k]
+            elif self.feat_process_type == 'cat':
+                if self.ignore_lowres:
+                    all_feats = torch.cat([spec_feat] + high_feat, dim=2)
+                else:
+                    all_feats = torch.cat([low_feat, spec_feat] + high_feat, dim=2)
+        else:
+            if self.feat_process_type == 'reduce':
+                all_feats = torch.cat([low_feat] + high_feat, dim=2)
+            elif self.feat_process_type == 'add':
+                all_feats = low_feat
+                for k in range(self.spatial_sampler.top_k):
+                    all_feats += high_feat[k]
+            elif self.feat_process_type == 'cat':
+                if self.ignore_lowres:
+                    all_feats = torch.cat(high_feat, dim=2)
+                else:
+                    all_feats = torch.cat([low_feat] + high_feat, dim=2)
 
         assert all_feats.ndim == 3
 
