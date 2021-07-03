@@ -1,0 +1,22 @@
+# Training steps
+
+- [x] baselines
+    - run_pipeline_simple_san19pair_rgb_112.sh
+    - run_pipeline_simple_san19pair_rgb_224.sh
+- [x] hallucinator
+    - run_pipeline3_rgb_san19pairfreeze112@layer3-0_halluconvlstm2.sh
+- [x] top 0 (=> *global view*)
+    - run_pipeline4_rgb_san19pairfreeze112_actreggru2.sh
+    - run_pipeline4_rgb_san19pairfreeze224_actreggru2.sh
+- [x] top 1/2/3 actreggru2 (=> *both view*)
+    - run_pipeline5_rgb_san19pairfreeze_actreggru2_top1_cat.sh
+    - run_pipeline5_rgb_san19pairfreeze_actreggru2_top2_cat.sh
+    - run_pipeline5_rgb_san19pairfreeze_actreggru2_top3_cat.sh
+- [ ] top 1/2/3 actreggru2+nolowres (=> *local view*)
+    - run_pipeline5_rgb_san19pairfreeze_actreggru2_top1_cat_nolowres.sh
+    - run_pipeline5_rgb_san19pairfreeze_actreggru2_top2_cat_nolowres.sh
+    - run_pipeline5_rgb_san19pairfreeze_actreggru2_top3_cat_nolowres.sh
+- [ ] top 1/2/3 multihead (global + local + both)
+    - run_pipeline5_rgb_san19pairfreeze_actreggru3_top1_cat.sh
+    - run_pipeline5_rgb_san19pairfreeze_actreggru3_top2_cat.sh
+    - run_pipeline5_rgb_san19pairfreeze_actreggru3_top3_cat.sh
