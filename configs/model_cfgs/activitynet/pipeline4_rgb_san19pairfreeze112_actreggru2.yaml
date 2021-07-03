@@ -1,6 +1,6 @@
 model_name: 'Pipeline4'
 model_params:
-    feat_model_cfg: 'configs/model_cfgs/activitynet/san19_multi_pairwise_112_actnetpretrained.yaml'
+    feat_model_cfg:   'configs/model_cfgs/activitynet/san19_multi_pairwise_112_actnetpretrained.yaml'
     actreg_model_cfg: 'configs/model_cfgs/actreggru2.yaml'
     using_cupy: False
     num_class: 200
