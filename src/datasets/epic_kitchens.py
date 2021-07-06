@@ -30,12 +30,12 @@ logger = logging.get_logger(__name__)
 
 class EpicKitchenDataset(BaseDataset):
     def __init__(self, mode, list_file, new_length, modality, image_tmpl,
-                 visual_path=None, audio_path=None, fps=29.94,
+                 visual_path='', audio_path='', fps=29.94,
                  resampling_rate=44000, num_segments=3, transform=None,
                  use_audio_dict=True, to_shuffle=True,
-                 depth_path=None, depth_tmpl=None, depth_cache_tmpl=None,
-                 semantic_path=None, semantic_tmpl=None, semantic_cache_tmpl=None,
-                 full_test_split=None, has_motion_compensation=False):
+                 depth_path='', depth_tmpl='', depth_cache_tmpl='',
+                 semantic_path='', semantic_tmpl='', semantic_cache_tmpl='',
+                 full_test_split='', has_motion_compensation=False):
         """Initialize the dataset
 
         Each sample will be organized as a dictionary as follow
