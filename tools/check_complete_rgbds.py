@@ -131,7 +131,7 @@ def main():
     process(args.dataset_cfg, 1, 0, args.output, 'train')
     process(args.dataset_cfg, 1, 0, args.output, 'val')
     process(args.dataset_cfg, 1, 0, args.output, 'test')
-    return 0a
+    return 0
 
 
 if __name__ == '__main__':
