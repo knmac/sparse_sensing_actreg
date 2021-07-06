@@ -51,7 +51,7 @@ class BaseFactory():
     """Base factory for dataset and model generator"""
     def __init__(self):
         self.info_msg = 'Generating object'
-        self.objfn_dict = None
+        self.objfn_dict = {}
 
     def generate(self, name, **kwargs):
         """Generate object based on the given name and variables

@@ -26,7 +26,7 @@ class EpicWrapper(EpicKitchenDataset):
         n_total, n_complete = 0, 0
         missing = set()
         for idx in indices:
-            res, pth = self._load_data('RGBDS', record, idx)
+            res, pth = self._load_rgbds(record, idx)  # Force RGBDS
             if res is not None:
                 n_total += 1
                 if res is True:
@@ -34,7 +34,6 @@ class EpicWrapper(EpicKitchenDataset):
                 else:
                     missing.add(pth)
 
-        # print('vid {}/{}: DONE!'.format(index, len(self.video_list)))
         return n_total, n_complete, record.untrimmed_video_name, missing
 
     def _load_rgbds(self, record, idx):
@@ -132,7 +131,7 @@ def main():
     process(args.dataset_cfg, 1, 0, args.output, 'train')
     process(args.dataset_cfg, 1, 0, args.output, 'val')
     process(args.dataset_cfg, 1, 0, args.output, 'test')
-    return 0
+    return 0a
 
 
 if __name__ == '__main__':
