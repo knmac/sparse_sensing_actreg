@@ -163,26 +163,27 @@ class EpicWrapper(EpicKitchenDataset):
 
 
 def process(dataset_cfg, n_threads, n_parts, part_id, missing_dir, mode):
-    """Process by part"""
+    """Process the missing files by part"""
     print('='*30 + '\n' + mode + '\n' + '='*30)
-    _, dataset_params = ConfigLoader.load_dataset_cfg(dataset_cfg)
-
-    # Create dataset
-    dataset_params.update({
-        'mode': mode,
-        'modality': ['RGBDS'],
-        'new_length': {'RGBDS': 1},
-    })
 
     # Create the missing list by part
     missing_fname = os.path.join(missing_dir, 'missing.'+mode)
     assert os.path.isfile(missing_fname), \
         f'{missing_fname} not found'
+
     all_missing = open(missing_fname, 'r').read().splitlines()
-    all_missing.sort()  # sort the fnames
+    all_missing.sort()  # sort the fnames to cluster consecutive files
     part_len = math.ceil(len(all_missing) / n_parts)
     part_missing = all_missing[part_id*part_len:(part_id+1)*part_len]
 
+    # Create dataset
+    print('Initializing dataset...')
+    _, dataset_params = ConfigLoader.load_dataset_cfg(dataset_cfg)
+    dataset_params.update({
+        'mode': mode,
+        'modality': ['RGBDS'],
+        'new_length': {'RGBDS': 1},
+    })
     dataset = EpicWrapper(n_parts, part_id, part_missing, **dataset_params)
 
     # Use torch DataLoader for parallel processing
@@ -195,6 +196,7 @@ def process(dataset_cfg, n_threads, n_parts, part_id, missing_dir, mode):
     loader = DataLoader(dataset, shuffle=False, **loader_params)
 
     # Multithread processing
+    print('Start processing...')
     try:
         for i, _ in enumerate(loader):
             print('--> batch {}/{}: DONE'.format(i, len(loader)))
