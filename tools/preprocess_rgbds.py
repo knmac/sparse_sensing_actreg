@@ -58,7 +58,7 @@ def process(dataset_cfg, n_threads, n_parts, part_id, mode):
     loader = DataLoader(dataset, shuffle=False, **loader_params)
 
     try:
-        for i, data in enumerate(loader):
+        for i, _ in enumerate(loader):
             print('--> batch {}/{}: DONE'.format(i, len(loader)))
     except Exception:
         pass
