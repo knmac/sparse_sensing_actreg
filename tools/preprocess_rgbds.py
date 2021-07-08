@@ -38,17 +38,23 @@ class EpicWrapper(EpicKitchenDataset):
 
 
 def process(dataset_cfg, n_threads, n_parts, part_id, mode):
+    """Process the missing files by part"""
     print('='*30 + '\n' + mode + '\n' + '='*30)
-    _, dataset_params = ConfigLoader.load_dataset_cfg(dataset_cfg)
 
     # Create dataset
+    print('Initializing dataset...')
+    _, dataset_params = ConfigLoader.load_dataset_cfg(dataset_cfg)
     dataset_params.update({
         'mode': mode,
         'modality': ['RGBDS'],
         'new_length': {'RGBDS': 1},
     })
+    if mode == 'test':  # Force the real test set
+        dataset_params['list_file']['test'] = None
+        dataset_params['full_test_split'] = 'all'
     dataset = EpicWrapper(n_parts, part_id, **dataset_params)
 
+    # Use torch DataLoader for parallel processing
     loader_params = {
         'batch_size': n_threads,
         'num_workers': n_threads,
@@ -57,6 +63,8 @@ def process(dataset_cfg, n_threads, n_parts, part_id, mode):
     }
     loader = DataLoader(dataset, shuffle=False, **loader_params)
 
+    # Multithread processing
+    print('Start processing...')
     try:
         for i, _ in enumerate(loader):
             print('--> batch {}/{}: DONE'.format(i, len(loader)))
@@ -76,14 +84,21 @@ def main():
                         default='configs/dataset_cfgs/epickitchens_noshuffle_rgbds.yaml',
                         # default='configs/dataset_cfgs/epickitchens_p01_08.yaml',
                         help='Dataset configuration')
+    parser.add_argument('--mode', type=str, choices=['train', 'val', 'test', ''],
+                        default='', help='Specify which mode to run, otherwise will run all')
     args = parser.parse_args()
 
     assert 0 <= args.part_id < args.n_parts, \
         'part_id must be in [0, n_parts)'
     print('Part {} out of {}'.format(args.part_id+1, args.n_parts))
-    process(args.dataset_cfg, args.n_threads, args.n_parts, args.part_id, 'train')
-    process(args.dataset_cfg, args.n_threads, args.n_parts, args.part_id, 'val')
-    process(args.dataset_cfg, args.n_threads, args.n_parts, args.part_id, 'test')
+
+    if args.mode == '':
+        process(args.dataset_cfg, args.n_threads, args.n_parts, args.part_id, 'train')
+        process(args.dataset_cfg, args.n_threads, args.n_parts, args.part_id, 'val')
+        process(args.dataset_cfg, args.n_threads, args.n_parts, args.part_id, 'test')
+    else:
+        process(args.dataset_cfg, args.n_threads, args.n_parts, args.part_id, args.mode)
+
     return 0
 
 
