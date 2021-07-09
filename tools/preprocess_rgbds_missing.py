@@ -49,6 +49,10 @@ class EpicWrapper(EpicKitchenDataset):
         normalize_point_pth = os.path.join(self.depth_path, untrimmed_video_name,
                                            'Points.txt')
 
+        # Skip existing files
+        if os.path.isfile(depth_cache_pth) and os.path.isfile(semantic_cache_pth):
+            return []
+
         # Load rgb image to get dimension
         rgb = Image.open(os.path.join(self.visual_path,
                                       untrimmed_video_name,
@@ -158,8 +162,9 @@ class EpicWrapper(EpicKitchenDataset):
 
         # NOTE: does not have to return. Here is just to make the API happy
         # Combine the channels
-        rgbds = np.dstack([rgb, depth, semantic]).astype(np.uint8)
-        return [rgbds]
+        # rgbds = np.dstack([rgb, depth, semantic]).astype(np.uint8)
+        # return [rgbds]
+        return []
 
 
 def process(dataset_cfg, n_threads, n_parts, part_id, missing_dir, mode):
