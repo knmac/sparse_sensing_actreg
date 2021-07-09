@@ -11,9 +11,12 @@ import torchvision
 from torchvision.transforms import ToTensor
 from torch.utils.data.dataloader import default_collate
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from PIL import Image
+
+matplotlib.use('Agg')
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..')))
