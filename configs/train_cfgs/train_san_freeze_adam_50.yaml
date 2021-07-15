@@ -1,5 +1,5 @@
 batch_size: 48
-num_workers: 16
+num_workers: 128
 n_epochs: 50
 lr_steps: [20, 40]  # Epochs to decay learning rate by 10
 print_freq: 20  # Print frequency
